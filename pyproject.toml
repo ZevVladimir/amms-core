@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "amms-core"
+version = "0.1.0"
+description = "A shared core system for the AMMS simulation projects. Includes snapshot I/O, analysis, plotting, HPC, and run metadata"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "pyarrow>=14", # Used for parquet
+    "pyyaml>=5.0", # Used for the metadata.yaml trackers
+    "pydantic>=2.6", # Used for metadata schema verification
+    "h5py>=3.9", # Used to read hdf5 snapshots
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6", "pre-commit>=3.7"]
+
+[project.scripts]
+amms = "amms.core.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/amms"] # maps src/amms/ -> amms/
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501"] # formatter manages the line length
+
+[too.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

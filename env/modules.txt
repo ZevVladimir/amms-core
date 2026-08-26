@@ -1,0 +1,5 @@
+# Set the specific module versions for analysis
+# Pinned to full patch version (e.g. don't just use `python/3.11`)
+python/3.11/3.11.4
+
+# Don't use an hd5f module and use the h5py wheels for a specific serial HDF5
