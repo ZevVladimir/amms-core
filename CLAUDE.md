@@ -16,7 +16,9 @@ relitigating settled calls.
 ## Settled — argue only with new evidence, and name the decision if you do
 
 - **AREPO** is the only simulation code. GADGET-style HDF5 snapshots.
-- **Slurm on UA HPC.** Tiers: `/home`, `/groups`, `/xdisk` (time-limited
+- **Slurm on UA HPC. The clusters are Puma and Lynx (new).** Ocelote and El Gato
+  are **decommissioned** — do not propose them, and do not add them to
+  `machines.yaml` or `detect_machine`. Tiers: `/home`, `/groups`, `/xdisk` (time-limited
   allocation — expires and is *deleted*), `/rental` (long-term, must not compute
   from it), `/tmp` (node-local, cleared at job end). Site guidance: stage to
   `/tmp` for repeated reads, keep files-per-directory in the hundreds not tens of
@@ -104,8 +106,10 @@ relitigating settled calls.
 
 - PI/group name (the `/groups/<PI>` and `/xdisk/<PI>/<user>` component) and the
   HPC username (likely `zvladimir`). Needed for `config/machines.yaml`.
-- Which cluster(s) they primarily use. Plan: define all three, Puma default,
-  detect via `AMMS_MACHINE` → `SLURM_CLUSTER_NAME` → hostname patterns → `local`.
+- Which of Puma / Lynx is primary, and whether Lynx is available yet. `machines.yaml`
+  defines both; detection order is `AMMS_MACHINE` → `SLURM_CLUSTER_NAME` →
+  hostname patterns → `local`. Never fall back to a raw hostname: this user's
+  laptop has DHCP/Tailscale names that churn.
 - Whether this AREPO build embeds `/Config` and `/Parameters` HDF5 groups in
   snapshots (`h5ls -r <snap> | grep -iE '^/(Config|Parameters)'`). If yes those
   are the authoritative provenance source and `param.txt` becomes the fallback.

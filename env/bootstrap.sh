@@ -22,7 +22,14 @@ detect_machine() {
         *)  echo local ;;
     esac
 }
-CLUSTER="$(detect_machine)"
+
+# --- Refuse bootstrap from inside venv ---
+# boostrap must use module/system python not venv
+if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+    echo "ERROR: a virtualenv is already active: $VIRTUAL_ENV" >&2
+    echo "  Run 'deactivate' (or open new shell) and re-run" >&2
+    exit 1
+fi
 
 # --- Load the modules ---
 if ! command -v module >/dev/null 2>&1; then
@@ -69,7 +76,7 @@ pre-commit install --install-hooks || echo "note: pre-commit hooks not installed
 
 # --- record what got installed ---
 # lock per (cluster, python) pair since python differs between clusters
-CLUSTER="${SLURM_CLUSTER_NAME:-$(hostname -s)}"
+CLUSTER="$(detect_machine)"
 mkdir -p "$REPO_ROOT/env/locks"
 LOCK="$REPO_ROOT/env/locks/${CLUSTER}-py${PY_VER}.txt"
 pip freeze --exclude-editable > "$LOCK"
