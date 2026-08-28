@@ -1,0 +1,26 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# --- Environment --
+.venv/
+venv/
+
+# --- Simulation Data ---
+# Core package should have not data
+*.hdf5
+*.h5
+snapdir_*/
+output/
+*.parquet
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- Deliberately NOT ignored ---
+# env/locks/*.txt Records what pip actually installed per cluster

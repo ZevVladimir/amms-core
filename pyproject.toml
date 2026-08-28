@@ -13,7 +13,7 @@ dependencies = [
     "numpy>=1.24",
     "pandas>=2.0",
     "pyarrow>=14", # Used for parquet
-    "pyyaml>=5.0", # Used for the metadata.yaml trackers
+    "pyyaml>=6.0", # Used for the metadata.yaml trackers
     "pydantic>=2.6", # Used for metadata schema verification
     "h5py>=3.9", # Used to read hdf5 snapshots
     "matplotlib>=3.7",
@@ -36,6 +36,6 @@ target-version = "py310"
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 ignore = ["E501"] # formatter manages the line length
 
-[too.pytest.ini_options]
+[tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
