@@ -1,9 +1,36 @@
 # amms-core
 
-**AMMS = Arepo Milky-way Magellanic-clouds Simulations.** The science is the Milky
-Way and the Magellanic Clouds: satellite dynamics, LMC/SMC orbits and interaction,
-stellar streams. Expect `analysis/` to grow toward halo/satellite finding, orbit
-integration and stream diagnostics rather than, say, cosmological power spectra.
+**AMMS = Arepo Milky-way Magellanic-clouds Simulations.**
+
+**These are HYDRO runs with AREPO + SMUGGLE, and they are NON-COSMOLOGICAL.**
+Isolated and interacting galaxy models, so `ComovingIntegrationOn = 0`:
+`TimeBegin`/`TimeMax` are physical times in code units, **not** scale factors, and
+`z_start`, `z_end`, `sigma_8`, `n_s`, `omega_*` are dead fields. Do not design
+around cosmological boxes — that error was already made once and caught.
+
+What actually discriminates runs: which galaxies are present, their masses and gas
+fractions, particle/cell mass resolution, softening, and the `SMUGGLE_*` block in
+`Config.sh` (which for SMUGGLE genuinely *is* the physics).
+
+Planned ladder: SMC alone → LMC alone → SMC+LMC → MW+SMC+LMC (production).
+
+**The ICs are the weakest provenance link, and they are upstream of this user.**
+They come from another grad student's N-body runs, are actively being revised, will
+be shared across many runs, and are not in any git history this user controls. In
+practice IC revision *n* and *n+1* will share a filename. **Hash the IC file at
+time of use** (sha256, or size + head/tail digest if huge) — that information is
+destroyed the moment the file is overwritten, so it cannot be backfilled.
+
+AREPO/SMUGGLE may be built by someone else, so `code.commit` is a property of a
+build this user does not own. Copy `Config.sh` and compiler output *into* the run
+directory rather than pointing at a source tree that may be rebuilt underneath.
+This makes snapshot-embedded `/Config` more valuable, not less.
+
+Baseline comparison targets exist: the professor's older, less accurate runs.
+Eventually worth registering as read-only comparison entries. Not now.
+
+Matching the group's existing directory conventions is explicitly **not** a goal;
+the user wants consistency and understandability for themselves.
 
 Shared core package pinned by every AMMS project repo. AREPO simulations, UA HPC,
 Slurm. A breaking change here silently invalidates old analyses, so treat the
@@ -12,6 +39,121 @@ public API as load-bearing and version deliberately.
 Working style: `~/.claude/CLAUDE.md`. The user keeps their own decision log and
 relies on it primarily; this file is mine, and exists so I stop re-deriving or
 relitigating settled calls.
+
+## BUILD FREEZE (set 2026-08-27) — read before proposing any new module
+
+As of this date the user has **no AREPO runs on disk**, **no estimate of run
+count**, and **no settled job pattern**. Anything whose design depends on those
+unknowns is speculation and is frozen:
+
+- `metadata.py` — schema field names were invented, never checked against a real
+  `param.txt`.
+- `codes/arepo.py` — the parameter-name mapping is a guess about this AREPO build.
+- `io/` — there are no snapshots to read.
+- `registry/`, `cli.py`, dashboard, cookiecutter, Obsidian vault.
+- `events.jsonl` folding — designed for 100-task arrays, which may never happen.
+  `_yamlio.py` already implements the primitives; leave them, build nothing on them.
+
+**Do not resume these just because the Build Order section lists them next.**
+Resume only once a real run exists and its `param.txt`, `Config.sh`, directory
+listing, and snapshot header have actually been seen. The hand-written
+`metadata.yaml` for run #1 is the specification for the schema — discovered, not
+designed.
+
+Still worth building, since their value does not depend on the unknowns:
+`config/{machines.yaml,paths.py}` (cluster paths are facts about Puma, and run #1
+must be placed *somewhere*), `plotting/provenance.py` (figure stamping needs zero
+AREPO knowledge), and the `/xdisk` expiry check in `hpc/storage.py` (the
+allocation is deleted, not archived).
+
+**The critical path is not this repo.** It is getting AREPO compiled and run #1
+launched on Puma. Prefer helping with that over extending this package.
+
+**Freeze status as of 2026-09-01:** AREPO now builds and runs on Puma, but only a
+shipped 1D test problem (`examples/shocktube/shocktube_sod_1d`). That is enough to
+retire the *snapshot-format* questions below, and not enough to unfreeze
+`metadata.py` — no science run, no ICs, no SMUGGLE config, still no job pattern.
+
+## AREPO on Puma — established 2026-09-01, first successful build and run
+
+- **Source:** `git@bitbucket.org:volkerspringel/arepo.git`, branch
+  `Arepo2-smuggle-mod` (`d323be6`, Federico Marinacci, 2026-07-20). Private repo,
+  access granted; SSH key auth, port 22 open from compute nodes. 17 SMUGGLE
+  branches exist — `lucchini_smuggle` is Magellanic-relevant and was *not* chosen;
+  `Arepo2-smuggle-mod` is the active development line. Clone at
+  `/home/u2/zvladimir/codes/arepo-smuggle` on Puma, read-only copy at
+  `~/codes/arepo-smuggle` on the laptop.
+- **`git clone --recurse-submodules` is mandatory.** `lib/safeintegral` is a header
+  library the source includes. Without it every compile fails on a missing header,
+  and because `make` was running with `-i` the failures printed as
+  `Error 127 (ignored)` and the build proceeded to link with zero object files —
+  presenting as a linker problem, not a source problem.
+- **AREPO2 is C++**: 482 `.cc` files vs 27 `.c`, `src/main/main.cc`. A systype must
+  set **both `CC` and `CPPC`** to `mpicxx -std=c++11`, and must *not* put `-std=c11`
+  in `OPTIMIZE`. An unset `CPPC` makes the recipe exec `-std=c11` as a program.
+- **`SYSTYPE="Puma"` existed in `buildsystem/systypes.make` but was dead**: it
+  hardcoded Puma's 2020 stack (`openmpi3-gnu8/3.1.4`, `gsl/2.6`, `hdf5/1.10.5`,
+  `hwloc/2.2.0`) — all four directories deleted by an OS refresh — and set neither
+  `CC` nor `CPPC`. Fixed on local branch `puma-buildsystem`; worth upstreaming.
+- **Current Puma stack:** default-loaded `gnu13/13.2.0`, `openmpi5/5.0.5`,
+  `hwloc/2.13.0`, `ucx`, `libfabric`. Under `gnu13`: `gsl/2.7.1`, `hdf5/1.14.0`
+  (serial). Under `gnu13-openmpi5`: `fftw/3.3.10`, `phdf5/1.14.0`. Build module set:
+  `gnu13 openmpi5 gsl hdf5 fftw`.
+- **Reference module-exported `*_DIR` vars, never literal paths** — that is exactly
+  what rotted. Two names are unusable in a systype block: **`FFTW_LIB` and
+  `HWLOC_LIB` are assigned in `Makefile` before `systypes.make` is included**, so
+  the module's env values are shadowed and `-L$(HWLOC_LIB)` yields `-L-lhwloc`.
+  Use `*_DIR` or `*_INC`.
+- **`GMPLIB := -lgmp` is unconditional** in the link line; `libgmp.so` must be
+  present. FFTW is linked only under `PMGRID`/`TURB_POWERSPEC`, HWLOC only under
+  `IMPOSE_PINNING` — so neither matters for non-cosmological runs.
+- **Avoid `-march=native`** even though other systypes use it. Puma has more than
+  one node generation; a binary built on one and run on another dies with
+  `Illegal instruction`, which reads like a code bug.
+- **Build one binary per run directory:** `make TARGET_DIR=<dir>` reads
+  `<dir>/Config.sh` and writes `<dir>/Arepo` plus `<dir>/build/`. This is upstream's
+  own mechanism and it *is* the "copy Config.sh and compiler output into the run
+  directory" decision — wrap it in `codes/arepo.py`, do not reimplement it.
+  `Makefile.systype`, `/Config*.sh` and `/run` are already gitignored upstream.
+- **Test framework:** `./test.py --no-cleanup <path/relative/to/examples>` (root
+  `test.py` is a symlink to `examples/test.py`; names are paths, so
+  `shocktube/shocktube_sod_1d`, not `shocktube_sod_1d`). It copies the example,
+  runs `create.py`, builds, runs `mpiexec -n N ./Arepo param.txt`, then `check.py`.
+  Output goes to `<repo>/run/examples/<name>/` — symlink `run` onto `/xdisk`.
+  Needs numpy, scipy, h5py, matplotlib (+pyyaml); lives in `~/.venvs/arepo-tests`,
+  deliberately **not** `~/.venvs/amms`. `documentation/code_tests.md` refers to a
+  `test.sh` that does not exist on this branch.
+- **Docs worth reading before guessing:** `documentation/getting_started.md`,
+  `code_tests.md`, `core_param_options.md`, `core_unit_system.md`,
+  `modules_smuggle_sfr.md`. No SMUGGLE *example* ships, so validating SMUGGLE
+  physics needs a setup built from that doc, not a shipped test.
+
+## Snapshot and output layout — observed, no longer guessed
+
+- **`/Config` and `/Parameters` HDF5 groups ARE embedded in snapshots.** Confirmed
+  2026-09-01 on `Arepo2-smuggle-mod`. These are the authoritative provenance
+  source; `param.txt` is the fallback. This retires the old open question.
+- **The resolved parameter dump is `<paramfile>-usedvalues`** (e.g.
+  `param.txt-usedvalues`), written to the **run directory root**, not `OutputDir`.
+  It contains AREPO's own defaults for anything the user omitted.
+- **The parameter set is a function of `Config.sh`** — AREPO reads only the
+  parameters its compiled options need (62 for the 1D sod test; a SMUGGLE run will
+  have far more). **Therefore `metadata.py` must not enumerate AREPO parameters.**
+  Let `/Parameters` and `*-usedvalues` carry parameter truth; keep `metadata.yaml`
+  for scientific intent (which galaxies, masses, gas fractions, resolution) that
+  AREPO has no concept of.
+- **`output/end` is an empty file written on clean termination.** Use it as the
+  completion sentinel in `registry/scan.py` — far more reliable than parsing logs.
+- Run-dir contents: `Arepo`, `build/`, `Config.sh`, `param.txt`,
+  `param.txt-usedvalues`, `ics.hdf5`, `uses-machines.txt`, `output/`.
+- `output/` contents: `snap_NNN.hdf5`, `restartfiles/`, `end`, and the logs
+  `balance.txt cpu.txt domain.txt energy.txt hostmemory.txt info.txt memory.txt
+  timebins.txt timings.txt`. Note `cpu.txt` was 4.4 MB for a 100-cell 1D test,
+  but that test sets `DEBUG` and `TimeBetStatistics 0.01`, so treat it as an upper
+  bound on verbosity rather than a size estimate for production runs.
+- Non-cosmological reading confirmed from the code's own output:
+  `ComovingIntegrationOn 0`, and `Omega0`/`OmegaLambda`/`OmegaBaryon`/`HubbleParam`
+  all 0.
 
 ## Settled — argue only with new evidence, and name the decision if you do
 
@@ -23,6 +165,13 @@ relitigating settled calls.
   from it), `/tmp` (node-local, cleared at job end). Site guidance: stage to
   `/tmp` for repeated reads, keep files-per-directory in the hundreds not tens of
   thousands, avoid tight open/close loops.
+- **PI/group is `gbesla`** (confirmed 2026-08-31). Home is `/home/u2/zvladimir`;
+  HPC username is `zvladimir`. `/xdisk/gbesla/zvladimir/` exists and is the user's
+  own space. `/xdisk/gbesla/group/` is the **shared group data area** — this is
+  where read-only comparison data lives, including the professor's older runs
+  (e.g. Besla+2012 at `/xdisk/gbesla/group/b12/lmc_smc_mw/model2/snaps/`). Other
+  members' `/xdisk/gbesla/<netid>/` dirs are **not** group-readable; never assume
+  a path under someone else's name can be read.
 - **Site python module + venv. Never conda/mamba.** Consequence:
   `environment.yml` cannot describe this environment, so reproducibility rests on
   `env/modules.txt` + committed `env/locks/`.
@@ -30,6 +179,15 @@ relitigating settled calls.
   `src/amms/__init__.py` — its absence is what allows a future `amms-viz`.
 - **pydantic v2 with `extra="forbid"` on every model.** Forbid is the point:
   `phyics: hydro` would otherwise parse cleanly and leave `physics` as None.
+- **Four projects, one per galaxy configuration**, each its own repo pinning this
+  package: `smc`, `lmc`, `lmcsmc`, `mwlmcsmc`. Four independent run counters. The
+  user chose this over a single project with a `system:` metadata field; do not
+  reopen it. Cross-ladder chronology is recoverable from `created` dates, and the
+  shared-analysis-code cost is what `amms-core` itself absorbs.
+- **Hash the ICs at time of use** and copy `Config.sh` + compiler output into the
+  run directory. Record IC filename, size, sha256 (head/tail digest if huge), date
+  obtained, and who produced it. Build this utility the moment real ICs land —
+  before running anything with them — because the information cannot be backfilled.
 - **SIM_ID is `<project>_<NNN>_<slug>`** (`mwsat_007_fiducial`). Underscore
   separates the three fields, hyphens only inside the slug. `parse()` enforces a
   round-trip so exactly one spelling exists per identity. **No physics prefix** —
@@ -40,8 +198,10 @@ relitigating settled calls.
   a numpy bump would otherwise break every analysis script simultaneously.
 - **Cached products live in a parallel tree `$WORK/products/<sim_id>/`**, not
   inside the run directory. Keeps small derived data separately syncable.
-- **`requires-python = ">=3.10"`.** Cluster module tops out at 3.11.4; avoid
-  3.11-only syntax so the floor stays honest.
+- **`requires-python = ">=3.10"`.** Puma offers `python/3.11/3.11.4` (the `(D)`
+  default) **and** `python/3.14/3.14.2`; `env/modules.txt` pins 3.11.4. Avoid
+  3.11-only syntax so the floor stays honest. The floor rests on the lock-file
+  argument, not on what modules exist — 3.14 being available does not reopen it.
 - **Committed lock per (cluster, python) pair**, `env/locks/<cluster>-py<ver>.txt`.
   One shared requirements.txt across clusters is a lie discovered when a paper
   figure won't regenerate.
@@ -78,13 +238,105 @@ relitigating settled calls.
    is allowed but records `forced: true` on the job entry, so an unlabeled run is
    a queryable field rather than an invisible one.
 
+## HPC access (facts about this user's setup, not preferences)
+
+- `ssh puma` → login node (junonia), via a bastion jump configured in
+  `~/.ssh/config`. Use for submitting jobs, tailing logs, moving files.
+- **junonia has no Lmod at all.** It is a *shared submission shell node* across all
+  clusters (see `zz_ua_shellnode_only.sh`, `zz_ua_cluster_selector.sh` in its
+  `/etc/profile.d`), so it cannot carry a per-cluster module stack. `module` is
+  undefined there even in a login shell, and `LMOD_PKG`/`MODULESHOME` are empty.
+  **Consequence: never run `bootstrap.sh` or `activate.sh` from junonia** — they
+  take the no-`module` branch and print `assuming local machine`, which is a lie.
+  The `shell` command belongs on the bastion (gatekeeper), not on junonia; the
+  `(puma)` prompt prefix only means Puma is the selected *scheduler*.
+- **Compute nodes have Lmod *and* outbound internet** (`pip install` from PyPI/git
+  works there). `LMOD_PKG=MODULESHOME=/opt/ohpc/admin/lmod/lmod`, init script at
+  `/etc/profile.d/lmod.sh` — so the `/opt/ohpc/admin/lmod/lmod` fallback already
+  hardcoded in `bootstrap.sh` is correct, not dead code. Do env builds on the
+  compute node, not junonia.
+- `hpc-dev` (local `~/bin/hpc-dev`) allocates a compute node via
+  `~/bin/vscode-hold.slurm` on junonia, rewrites `~/.ssh/hpc-dev` (included by
+  `~/.ssh/config`), and points the `puma-dev` alias at whichever node was granted.
+  **This is what VSCode Remote-SSH attaches to** for notebooks and interactive
+  python. The hold job is named `vscode`.
+- **Interactive sessions burn real allocation.** They end with `scancel -n vscode`.
+  Never propose leaving one running, and prefer `sbatch` over interactive for
+  anything that does not need a human in the loop.
+- Current hold: 1 node, 4 CPUs, 4 hours, on a paid partition. **Windfall was
+  rejected deliberately** — preemptible, and losing an interactive session
+  mid-work is not worth the savings. Do not suggest it.
+- SSH keys live on the shared home, so auth is keyless across nodes. Duo may still
+  prompt about once a day.
+- `~/.vscode-server/data/Machine/settings.json` on the cluster is tuned to avoid
+  inotify watch limits and indexing CPU load. Don't propose settings that
+  re-enable broad file watching.
+- **Claude runs on the laptop only — never on the HPC.** There is no filesystem or
+  shell access to Puma from a session. Propose shell commands and file contents
+  for the user to paste into their Remote-SSH terminal; never assume a path on
+  Puma can be read, and ask for output rather than inferring it.
+- **`~/.venvs/amms` is a controlled environment. Do not install foreign
+  dependencies into it.** Other people's code (the grad student's legacy analysis,
+  pygadgetreader, the professor's old-simulation tooling) gets its own venv and its
+  own Jupyter kernel. pygadgetreader may pin old numpy, which would downgrade the
+  numpy in `env/locks/` and make the lock describe an environment that no longer
+  exists — reproducibility lost to a convenience install.
+- **`~/.venvs/legacy-gadget` is the built venv for legacy binary GADGET work**
+  (built 2026-08-31 for Himansh Rathore's `clouds_demo` notebook; also the intended
+  home for the professor's old-simulation tooling). Recipe, on a **compute node**:
+  `module load python/3.14/3.14.2` → `python3 -m venv --upgrade-deps` →
+  `pip install numpy matplotlib ipykernel` → plain
+  `pip install git+https://github.com/jveitchmichaelis/pygadgetreader.git`.
+  Installs as `pyGadgetReader 2.6` and pulls in `h5py`. **Do not pass
+  `--no-build-isolation`** — the fork has a `pyproject.toml`, and py3.12+ venvs no
+  longer seed `setuptools`, so the flag produces
+  `BackendUnavailable: Cannot import 'setuptools.build_meta'`. numpy 2.x is fine;
+  do not pin `<2`. `pip freeze` is recorded at
+  `~/.venvs/legacy-gadget/freeze.txt`. py3.14 was chosen to match the notebook's
+  saved `mypy14` kernel, which is the module python, not a conda env.
+
 ## Traps that have already cost time
 
 - **UA's default python is 3.6.8 with no module**, where pydantic v2 and numpy
   1.24 cannot install. A failed `module load` therefore presents as a broken
   package, not a broken environment. `bootstrap.sh` asserts the version — keep it.
+- **Distinguish a *failed* `module load` from an *absent* `module` command.** They
+  present differently and the second one cost two debugging rounds: on junonia
+  `module` does not exist at all (`bash: module: command not found`), which is a
+  *node* problem, not a modules-misconfigured problem. `exec bash -l` does not fix
+  it. Check `LMOD_PKG`/`MODULESHOME` and `ls /etc/profile.d/ | grep lmod` before
+  proposing an init path to source.
 - **A venv built on a module python breaks if that module isn't loaded.** Always
   `source env/activate.sh`, which does modules *and* venv. Never activate alone.
+- **Jupyter kernels bypass `activate.sh` entirely and need a launcher wrapper.**
+  VSCode's Jupyter extension reads `kernel.json` and **execs `argv[0]` directly
+  from the Node extension host — no shell is ever in the ancestry.** `module` is a
+  bash function, so the kernel can never have run `module load`; `LD_LIBRARY_PATH`
+  lacks the module lib dir, and the venv's symlinked interpreter dies at
+  `libpython3.X.so.1.0: cannot open shared object file`. This is a *dynamic loader*
+  error with no Python traceback — the venv is fine, its environment is wrong, so
+  rebuilding the venv is the wrong move. Fix: `argv[0]` points at a
+  `kernel-launch.sh` that sources the Lmod init, `module purge && module load`,
+  then **`exec`**s the venv python with `"$@"`. `exec` is required — without it bash
+  lingers as parent and VSCode's interrupt/restart signals never reach python, so
+  the stop button silently does nothing. `kernel.json` gets no shell expansion, so
+  the path must be absolute (no `~`, no `$HOME`). Working example:
+  `~/.venvs/legacy-gadget/kernel-launch.sh`. **Decision: wrapper, not a hardcoded
+  `LD_LIBRARY_PATH` in `kernel.json`'s `env` key** — both work today, but the
+  hardcoded path breaks on the next cluster image rebuild and presents as a corrupt
+  venv. When `~/.venvs/amms` gets a kernel it wants the same wrapper, reading its
+  module list from `env/modules.txt` so kernel and `activate.sh` cannot drift. That
+  work is **not** blocked by the build freeze.
+  Also: `ipykernel` auto-registers a duplicate `python3` kernelspec under
+  `<venv>/share/jupyter/kernels/python3` pointing at the bare interpreter. It fails
+  the same way and sits next to the working kernel in the picker.
+- **pyGadgetReader's `Could not determine file type by extension!` means the file
+  is unreadable, not that the extension is wrong.** It probes candidate filenames
+  on disk (`snap`, `snap.0`, `snap.hdf5`, …) and emits this when none can be
+  opened. Both a permission-denied path and a **leading space in the path string**
+  produced it. Check `ls` on the path before touching format arguments, and never
+  "fix" it by symlinking to an invented extension — if detection picks the wrong
+  reader you get a successful read of garbage instead of an error.
 - Makefile recipes need literal tabs; VSCode inserts spaces by default.
 - The local machine has no `pip` and no `ensurepip` (needs apt `python3-venv`,
   `python3-pip`). `bootstrap.sh` works on the cluster regardless.
@@ -104,17 +356,21 @@ relitigating settled calls.
 
 ## Open questions — ask, do not guess
 
-- PI/group name (the `/groups/<PI>` and `/xdisk/<PI>/<user>` component) and the
-  HPC username (likely `zvladimir`). Needed for `config/machines.yaml`.
+- **When does the `/xdisk/gbesla` allocation expire?** Unanswered as of 2026-08-31,
+  and it gates `hpc/storage.py`. Both the B12 comparison snapshots
+  (`/xdisk/gbesla/group/`) and the user's own space live there, and `/xdisk` is
+  deleted rather than archived.
 - Which of Puma / Lynx is primary, and whether Lynx is available yet. `machines.yaml`
   defines both; detection order is `AMMS_MACHINE` → `SLURM_CLUSTER_NAME` →
   hostname patterns → `local`. Never fall back to a raw hostname: this user's
   laptop has DHCP/Tailscale names that churn.
-- Whether this AREPO build embeds `/Config` and `/Parameters` HDF5 groups in
-  snapshots (`h5ls -r <snap> | grep -iE '^/(Config|Parameters)'`). If yes those
-  are the authoritative provenance source and `param.txt` becomes the fallback.
 - The other grad student's analysis code has not been seen yet. `io/` carries a
-  documented stub backend so it can slot in without touching call sites.
+  documented stub backend so it can slot in without touching call sites. Two
+  *distinct* upstreams, do not conflate them: (a) **`snapAnalysis`**
+  (github.com/hfoote/snapAnalysis, mostly Hayden Foote) is the group's **HDF5**
+  reader for AREPO/GADGET-4 snapshots and the leading candidate for the real `io/`
+  backend; (b) Himansh Rathore's code (`clouds_demo`) is the **legacy binary**
+  pygadgetreader path. Neither has been read yet.
 
 ## Commands
 
