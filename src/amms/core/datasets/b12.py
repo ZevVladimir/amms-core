@@ -29,6 +29,14 @@ SNAP_PRESENT_DAY = 69
 LMC_CENTER_069 = (-0.18, -37.28, -30.40)  # kpc
 LMC_VCENTER_069 = (-81.28, -264.26, 248.83)  # km/s
 
+# Position-angle reference reproducing Himansh Rathore's clouds_demo frame: the
+# spherical polar basis (theta_hat, phi_hat, r_hat) at L_hat, so y' is the line
+# of nodes. Matches his figures
+# Deliberately NOT the amms default: ref . z_hat = -cos(theta), so it degenerates
+# when the disk normal nears the box z-axis -- which is how our ICs are built.
+PA_REFERENCE_CLOUDS_DEMO = (0.0, 0.0, -1.0)
+
+
 
 def to_kpc(pos: np.ndarray) -> np.ndarray:
     return np.asarray(pos, dtype=float) / H

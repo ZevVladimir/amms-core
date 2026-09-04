@@ -29,7 +29,7 @@ def shrinking_sphere_center(
     r_init: float | None = None,
     shrink: float = 0.9,
     n_min: int = 100,
-    tol: float = 0.01,
+    tol: float = 0.001,
     patience: int = 2,
 ) -> np.ndarray:
     """
