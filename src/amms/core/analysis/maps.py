@@ -51,6 +51,7 @@ class Map2D:
         Write the npz
         Meta goes through json so load() can refuse pickles
         """
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(
             path,
             values=self.values,
