@@ -24,8 +24,10 @@ SIM_ID_RE = re.compile(
     r"_(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
 )
 
+
 class InvalidSimID(ValueError):
     """Raised when a string is not a valid simulation identifier."""
+
 
 @dataclass(frozen=True, order=True)
 class SimID:
@@ -69,12 +71,14 @@ class SimID:
         """Returns a new SimID with the same project and number but a new description slug"""
         return SimID(self.project, self.number, slugify(slug))
 
+
 def slugify(text: str) -> str:
     """Converts a string into a slug valid for SimID"""
     s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     if not s:
         raise ValueError(f"Cannot slugify {text!r} into a valid slug")
     return s
+
 
 def existing_ids(root: Path, project: str | None = None) -> list[SimID]:
     """Returns all the valid SIM_ID appearing as directories in the root path"""
@@ -87,14 +91,17 @@ def existing_ids(root: Path, project: str | None = None) -> list[SimID]:
         try:
             sid = SimID.parse(entry.name)
         except InvalidSimID:
-            continue # Unrelated directory name can safely skip
+            continue  # Unrelated directory name can safely skip
 
         if project is None or sid.project == project:
             found.append(sid)
 
     return sorted(found)
 
-def create_run_dir(root: Path, project: str, slug: str, *, attempts: int = 20) -> tuple[SimID, Path]:
+
+def create_run_dir(
+    root: Path, project: str, slug: str, *, attempts: int = 20
+) -> tuple[SimID, Path]:
     """Allocate the next run number for the current project and create its directory"""
     slug = slugify(slug)
     for _ in range(attempts):
@@ -107,6 +114,3 @@ def create_run_dir(root: Path, project: str, slug: str, *, attempts: int = 20) -
 
         return sid, run_dir
     raise RuntimeError(f"cound not allocate a run number under {root} after {attempts} attempts")
-
-
-    

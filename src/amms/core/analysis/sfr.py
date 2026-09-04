@@ -118,4 +118,4 @@ def sfh(
         weights=mass,
     )
 
-    return edges, total / np.diff(edges) * 1e9
+    return edges, total / (np.diff(edges) * 1e9)

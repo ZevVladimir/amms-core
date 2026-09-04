@@ -4,6 +4,7 @@
 2. append_event -- events.jsonl. Written by many array tasks at once
 3. render_stub -- metadata.yaml. This is written once and intended to be hand edited/commented
 """
+
 from __future__ import annotations
 
 import json
@@ -22,6 +23,7 @@ INDENT = "  "
 COMMENT_WIDTH = 88
 _MISSING = object()
 
+
 # --- writes ---
 def write_atomic(path: Path, text: str) -> None:
     """
@@ -29,7 +31,8 @@ def write_atomic(path: Path, text: str) -> None:
     """
     tmp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
     tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path) # atomic in a single filesystem
+    os.replace(tmp, path)  # atomic in a single filesystem
+
 
 def append_event(path: Path, event: dict[str, Any]) -> None:
     """
@@ -43,6 +46,7 @@ def append_event(path: Path, event: dict[str, Any]) -> None:
     finally:
         os.close(fd)
 
+
 def dump_state(model: BaseModel) -> str:
     """
     state.yaml uses a dump since it is intended for machine not human readability
@@ -54,11 +58,12 @@ def dump_state(model: BaseModel) -> str:
     body = yaml.safe_dump(model.model_dump(mode="json"), sort_keys=False, default_flow_style=False)
     return header + body
 
+
 # --- commented stub ---
 def render_stub(model_cls: type[BaseModel], values: dict | None = None, *, level: int = 0) -> str:
     """
     Renders a commented YAML stub from pydantic model
-    
+
     Comments are from Field(description=...) keeping the schema as the sole truth
     Protects from having to update the template when a new field is added
     """
@@ -68,14 +73,18 @@ def render_stub(model_cls: type[BaseModel], values: dict | None = None, *, level
 
     for name, field in model_cls.model_fields.items():
         if field.description:
-            out += [f"{pad}# {c}" for c in textwrap.wrap(field.description, COMMENT_WIDTH - len(pad))]
+            out += [
+                f"{pad}# {c}" for c in textwrap.wrap(field.description, COMMENT_WIDTH - len(pad))
+            ]
 
         given = values.get(name, _MISSING)
         nested = _nested_model(field.annotation)
 
         if nested is not None:
             out.append(f"{pad}{name}:")
-            out.append(render_stub(nested, given if isinstance(given, dict) else {}, level=level+1))
+            out.append(
+                render_stub(nested, given if isinstance(given, dict) else {}, level=level + 1)
+            )
         else:
             value = _default_of(field) if given is _MISSING else given
             if isinstance(value, dict) and value:
@@ -92,8 +101,9 @@ def render_stub(model_cls: type[BaseModel], values: dict | None = None, *, level
 
     return "\n".join(out).rstrip() + "\n"
 
+
 def _nested_model(annotation: Any) -> type[BaseModel] | None:
-    """ Unwrap `Setup` and `Setup | None` alike"""
+    """Unwrap `Setup` and `Setup | None` alike"""
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         return annotation
     for arg in get_args(annotation):
@@ -102,12 +112,14 @@ def _nested_model(annotation: Any) -> type[BaseModel] | None:
 
     return None
 
+
 def _default_of(field: Any) -> Any:
     if field.default is not PydanticUndefined:
         return field.default
     if field.default_factory is not None:
         return field.default_factory()
     return None
+
 
 def _scalar(value: Any) -> str:
     """Return one YAML scalar, with PyYAML deciding when to use quotes"""
@@ -119,5 +131,3 @@ def _scalar(value: Any) -> str:
         value = value.model_dump(mode="json")
     dumped = yaml.safe_dump({"_": value}, sort_keys=False, default_flow_style=True)
     return dumped.split(":", 1)[1].strip()
-
-
