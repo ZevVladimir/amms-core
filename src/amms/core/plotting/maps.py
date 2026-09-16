@@ -8,6 +8,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LogNorm, Normalize
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from amms.core.analysis.maps import Map2D
 
@@ -58,6 +59,7 @@ def show_map(
     vmax: float | None = None,
     cbar: bool = True,
     label: str | None = None,
+    aspect: float | str = "equal",
 ):
     if ax is None:
         _, ax = plt.subplots(constrained_layout=True)
@@ -80,7 +82,7 @@ def show_map(
         extent=m.extent,
         norm=norm,
         cmap=cmap,
-        aspect="equal",
+        aspect=aspect,
         interpolation="nearest",
     )
 
@@ -93,7 +95,9 @@ def show_map(
         ax.invert_yaxis()
 
     if cbar:
-        cb = ax.figure.colorbar(im, ax=ax)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="4%", pad=0.08)
+        cb = ax.figure.colorbar(im, cax=cax)
         cb.set_label(label if label is not None else f"{m.quantity} [{m.unit}]")
     return im
 
