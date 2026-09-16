@@ -84,8 +84,13 @@ def show_map(
         interpolation="nearest",
     )
 
-    ax.set_xlabel(f"{m.axes[0]} [kpc]")
-    ax.set_ylabel(f"{m.axes[1]} [kpc]")
+    ax.set_xlabel(m.axis_labels[0] if m.axis_labels else f"{m.axes[0]} [kpc]")
+    ax.set_ylabel(m.axis_labels[1] if m.axis_labels else f"{m.axes[1]} [kpc]")
+
+    if m.invert_x:
+        ax.invert_xaxis()
+    if m.invert_y:
+        ax.invert_yaxis()
 
     if cbar:
         cb = ax.figure.colorbar(im, ax=ax)

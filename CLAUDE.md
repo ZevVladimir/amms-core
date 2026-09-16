@@ -155,6 +155,74 @@ retire the *snapshot-format* questions below, and not enough to unfreeze
   `ComovingIntegrationOn 0`, and `Omega0`/`OmegaLambda`/`OmegaBaryon`/`HubbleParam`
   all 0.
 
+## Analysis + plotting layer — built 2026-09-04, first real science output
+
+**The module build order was deliberately reordered.** `analysis/{frames,maps,sfr}.py`
+and `plotting/maps.py` were built *before* `io/`, because they take plain `(N, 3)` numpy
+arrays and need zero snapshot knowledge — the freeze reason for `io/` does not reach
+them. Snapshot loading stays in the **project repo's** driver
+(`~/lmcsmcmw/scripts/sfr_maps_b12.py`), which is why `amms-core` is installed into
+`~/.venvs/legacy-gadget` with `pip install -e <repo> --no-deps`. That works only while
+`analysis/` and `plotting/` import nothing but numpy and matplotlib. Keep it that way.
+
+- **`Map2D` is the compute/plot seam.** Batch script writes npz under
+  `$AMMS_PRODUCTS/<dataset>/`; notebooks and plot scripts load and render, never read
+  snapshots. It carries `counts` beside `values` so shot noise stays visible, and
+  `meta` records the `Frame` so a cached product is self-describing.
+- **`histogram2d` returns `[nx, ny]`, `imshow` wants `[ny, nx]`.** `project_map`
+  transposes once, at construction. A transposed map of a near-axisymmetric disk looks
+  entirely plausible, so this is a silent failure — the regression pin is a single
+  particle at `(5,0,0)`, `extent=10`, `bins=4`, landing at `values[2, 3]`.
+- **Face-on rotation is Gram–Schmidt, not Euler angles.** `R @ zhat == [0,0,1]` then
+  holds by construction, with no quadrant cases. `reference` fixes the position angle
+  and the **default is the projected simulation x-axis**. Do not change that default to
+  `-z`: `ref . zhat = -cos(theta)`, so `-z` degenerates when the disk normal nears the
+  box z-axis — exactly how the isolated AMMS ICs are built. The B12 driver passes
+  `reference=(0,0,-1)` *explicitly* to match Rathore's `clouds_demo` frame (the
+  spherical basis, `y'` = line of nodes) for figure-by-figure comparison. The two
+  conventions differ by **130.65 deg** for the LMC, so figures are not
+  cross-comparable; the driver records `pa_convention` in `meta`.
+- **`shrinking_sphere_center(tol=0.01)` stops prematurely on tidally extended tracers.**
+  LMC disk stars span 48.8 kpc from the COM, and shaving thin outer shells moves the
+  center by under 10 pc, so `patience=2` is satisfied while the radius is still tens of
+  kpc. `tol=1e-4` *or* `r_init=10` converges to 0.088 kpc of Rathore's independent
+  center; `shrink` (0.9 vs 0.7) is irrelevant. The function returns only the center —
+  adding `(final_radius, n_iter)` would have made this a five-second diagnosis instead
+  of a parameter sweep.
+
+### B12 Model 2 — observed 2026-09-04, no longer guessed
+
+`/xdisk/gbesla/group/b12/lmc_smc_mw/model2/snaps/snapshot_069` confirmed readable (the
+`clouds_demo` notebook's `/xdisk/gbesla/himansh/...` path is irrelevant and unreadable).
+IC ID blocks, decoded from per-type min/max — every boundary exact:
+
+    LMC  gas 1-300,000            dm 300,001-400,000      disk 400,001-1,400,000
+    SMC  gas 1,400,001-1,700,000  dm 1,700,001-1,714,000  disk 1,714,001-1,814,000
+
+Blocks sum exactly to `N_LMC_INIT` and `N_SMC_INIT`. SMC dm is **14,000**, confirming the
+B12 Table 1 misprint. **Max ID anywhere is 1,814,000, so B12 Model 2 has NO live MW
+particles** — the MW is an analytic potential. Consequences: `galaxy_mask` is validated
+(0 unassigned of 468,486 star particles), and a perturber-direction `reference` cannot
+come from this snapshot; it would have to come from the paper's orbit parameters.
+
+- **Gas particles carry the high flag bit too**, not only stars. Never restrict the
+  parent-ID decode to `ptype == "star"`.
+- **Star IDs are not unique** and collide with live gas IDs — 468,486 stars over a
+  600,000-ID gas space. Fine for range-based `galaxy_mask`; **do not track a star across
+  snapshots by ID.** The flag bit is orthogonal to formation time.
+- All star particles share one mass, 1831.48 Msun.
+- **315,969 of 335,102 LMC stars have formation time exactly 0** — ~95% of all
+  new-star mass, in a single SFH bin. Almost certainly a clock reset from a prior
+  relaxation run. **Exclude from any SFH or mean-SFR**; an `age < 0.1` cut is unaffected.
+  Asked Rathore, unanswered as of 2026-09-04.
+- Present day: 2,664 LMC stars younger than 100 Myr, Sigma_SFR integrating to
+  **0.0488 Msun/yr** (observed LMC is ~0.2). Independently cross-validated — the 1-D
+  `sfh()` first four bins average 0.0486. Keep that agreement as a regression pin; it
+  simultaneously checks the `h` factors, the `dt * 1e9`, `pixel_area`, and the transpose.
+- The SFH is flat at ~0.036 Msun/yr across the run once the `ft == 0` spike is removed.
+  There is no decline and no pericenter starburst in this window — do not go looking for
+  a physical explanation of a trend that is an artifact of including that bin.
+
 ## Settled — argue only with new evidence, and name the decision if you do
 
 - **AREPO** is the only simulation code. GADGET-style HDF5 snapshots.
@@ -337,6 +405,11 @@ retire the *snapshot-format* questions below, and not enough to unfreeze
   produced it. Check `ls` on the path before touching format arguments, and never
   "fix" it by symlinking to an invented extension — if detection picks the wrong
   reader you get a successful read of garbage instead of an error.
+- **pyGadgetReader calls `sys.exit()` on a missing particle type** (`no BULGE particles
+  present!`). That raises `SystemExit`, which is a `BaseException` and is **not** caught
+  by `except Exception` — so a loop over particle types dies silently mid-way and the
+  remaining types are never reported. Cost one round of debugging. Catch
+  `BaseException`, or order the loop so the types you need come first.
 - Makefile recipes need literal tabs; VSCode inserts spaces by default.
 - The local machine has no `pip` and no `ensurepip` (needs apt `python3-venv`,
   `python3-pip`). `bootstrap.sh` works on the cluster regardless.
@@ -359,7 +432,10 @@ retire the *snapshot-format* questions below, and not enough to unfreeze
 - **When does the `/xdisk/gbesla` allocation expire?** Unanswered as of 2026-08-31,
   and it gates `hpc/storage.py`. Both the B12 comparison snapshots
   (`/xdisk/gbesla/group/`) and the user's own space live there, and `/xdisk` is
-  deleted rather than archived.
+  deleted rather than archived. **More urgent as of 2026-09-04:** the only Puma clone of
+  `clouds_demo` is at `/xdisk/gbesla/zvladimir/clouds_demo` (no home copy, not even a
+  symlink), and `$AMMS_PRODUCTS` points at `/xdisk/gbesla/zvladimir/products`. A git
+  repo does not belong on scratch — move it to `~/codes/`.
 - Which of Puma / Lynx is primary, and whether Lynx is available yet. `machines.yaml`
   defines both; detection order is `AMMS_MACHINE` → `SLURM_CLUSTER_NAME` →
   hostname patterns → `local`. Never fall back to a raw hostname: this user's
@@ -370,7 +446,12 @@ retire the *snapshot-format* questions below, and not enough to unfreeze
   (github.com/hfoote/snapAnalysis, mostly Hayden Foote) is the group's **HDF5**
   reader for AREPO/GADGET-4 snapshots and the leading candidate for the real `io/`
   backend; (b) Himansh Rathore's code (`clouds_demo`) is the **legacy binary**
-  pygadgetreader path. Neither has been read yet.
+  pygadgetreader path. **(b) has now been read and reproduced** (2026-09-04) — see the
+  B12 section above; its unit conversions, parent-ID decode and density center are all
+  reproduced in `datasets/b12.py` and `analysis/frames.py`. Its `phi` recovery
+  (`-arctan(abs(Ly/Lx))`) is quadrant-specific and correct only for the LMC's Q4 axis;
+  `arctan2(Ly, Lx)` fixes it. **`snapAnalysis` still has not been read** and remains the
+  candidate for the real `io/` backend.
 
 ## Commands
 

@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6", "pre-commit>=3.7"]
+sky = ["astropy>=6.0"]
 
 [project.scripts]
 amms = "amms.core.cli:main"
