@@ -8,7 +8,6 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LogNorm, Normalize
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from amms.core.analysis.maps import Map2D
 
@@ -76,15 +75,22 @@ def show_map(
         raise ValueError("pass either norm or vmin/vmax not both")
 
     # interpolation = "nearest" means that the map isn't smoothed like the default does
+    # aspect handled below via set_box_aspect -- imshow's own aspect=<non-auto> shrinks the
+    # Axes box via a path (Axes.apply_aspect) that make_axes_locatable's colorbar divider
+    # doesn't track, leaving a gap between the image and the colorbar
     im = ax.imshow(
         data,
         origin="lower",
         extent=m.extent,
         norm=norm,
         cmap=cmap,
-        aspect=aspect,
+        aspect="auto",
         interpolation="nearest",
     )
+    if aspect != "auto":
+        x0, x1, y0, y1 = m.extent
+        data_aspect = 1.0 if aspect == "equal" else float(aspect)
+        ax.set_box_aspect(abs(y1 - y0) / abs(x1 - x0) * data_aspect)
 
     ax.set_xlabel(m.axis_labels[0] if m.axis_labels else f"{m.axes[0]} [kpc]")
     ax.set_ylabel(m.axis_labels[1] if m.axis_labels else f"{m.axes[1]} [kpc]")
@@ -95,9 +101,7 @@ def show_map(
         ax.invert_yaxis()
 
     if cbar:
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="4%", pad=0.08)
-        cb = ax.figure.colorbar(im, cax=cax)
+        cb = ax.figure.colorbar(im, ax=ax)
         cb.set_label(label if label is not None else f"{m.quantity} [{m.unit}]")
     return im
 
