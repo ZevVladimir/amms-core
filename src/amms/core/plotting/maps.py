@@ -136,7 +136,7 @@ def panel_grid(
         im = show_map(
             m,
             flat[i],
-            norm if share_norm else None,
+            norm=norm if share_norm else None,
             log=log,
             min_counts=min_counts,
             cbar=not share_norm,
