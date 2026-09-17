@@ -19,6 +19,7 @@ __all__ = [
     "bulk_velocity",
     "face_on_basis",
     "shrinking_sphere_center",
+    "translate",
 ]
 
 
@@ -213,6 +214,26 @@ class Frame:
             r_axis=r_axis,
         )
 
+    @classmethod
+    def translation(
+        cls,
+        current_center: np.ndarray,
+        target_center: np.ndarray,
+        *,
+        rotation: np.ndarray | None = None,
+        tracers: str = "",
+    ) -> Frame:
+        """
+        Builds a frame that maps the current_center to target_center under .positions() with no velocity change
+
+        Pass rotation to compose with a previously derived orientation instead of leaving it as the identity matrix
+        """
+        current_center = np.asarray(current_center, dtype=float)
+        target_center = np.asarray(target_center, dtype=float)
+        rot = np.eye(3) if rotation is None else np.asarray(rotation, dtype=float)
+
+        return cls(current_center - target_center, np.zeros(3), rot, tracers=tracers)
+
     def positions(self, pos: np.ndarray) -> np.ndarray:
         # Returns the input positions with the Frame's corrections
         return (np.asarray(pos, dtype=float) - self.center) @ self.rotation.T
@@ -232,3 +253,16 @@ class Frame:
             "tracers": self.tracers,
             "r_axis": self.r_axis,
         }
+
+
+def translate(pos: np.ndarray, offset: np.ndarray) -> np.ndarray:
+    """
+    Shift the given positions by a constant offset
+
+    offset = target_center - current center
+    allows for the placement of a cloud with current_center on target_center
+    """
+    pos = np.asarray(pos, dtype=float)
+    offset = np.asarray(offset, dtype=float)
+
+    return pos + offset
