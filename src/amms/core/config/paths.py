@@ -54,6 +54,7 @@ def machine_root(tier: str, machine: str | None = None) -> Path:
 
     Raises a KeyError if the tier is undefined
     """
+    machine = machine or detect_machine()
     cfg = _machines()[machine]
 
     if tier == "rental":
