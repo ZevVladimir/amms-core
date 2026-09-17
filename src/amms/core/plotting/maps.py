@@ -122,7 +122,7 @@ def panel_grid(
 
     share_norm forces one color scale across the panel
     """
-    nrows = np.ceil(len(maps) / ncols)
+    nrows = int(np.ceil(len(maps) / ncols))
     fig, axes = plt.subplots(
         nrows, ncols, figsize=(4.2 * ncols, 4.0 * nrows), squeeze=False, constrained_layout=True
     )
