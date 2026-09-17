@@ -31,7 +31,7 @@ def detect_machine() -> str:
     if override:
         return override
 
-    fqdn = socket.getfqdn()
+    fqdn = socket.gethostname()
     for name, cfg in _machines().items():
         suffix = cfg.get("hostname_suffix")
         if suffix and fqdn.endswith(suffix):
@@ -41,7 +41,7 @@ def detect_machine() -> str:
 
 
 def _is_login_node(machine: str) -> bool:
-    fqdn = socket.getfqdn()
+    fqdn = socket.gethostname()
     patterns = _machines().get(machine, {}).get("login_hostname_patterns", [])
     return any(p in fqdn for p in patterns)
 
