@@ -196,7 +196,7 @@ class Frame:
         vel: np.ndarray,
         mass: np.ndarray | None = None,
         *,
-        r_center: float | None = None,
+        r_center: float = 10.0,
         r_vel: float = 5.0,
         r_axis: float = 10.0,
         reference: np.ndarray = (1.0, 0.0, 0.0),
@@ -236,7 +236,7 @@ class Frame:
 
     def positions(self, pos: np.ndarray) -> np.ndarray:
         # Returns the input positions with the Frame's corrections
-        return (np.asarray(pos, dtype=float) - self.center) @ self.rotation.T
+        return translate(pos, -self.center) @ self.rotation.T
 
     def velocities(self, vel: np.ndarray) -> np.ndarray:
         # Returns the input velocities with the Frame's corrections
