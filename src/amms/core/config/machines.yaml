@@ -1,0 +1,15 @@
+# For each machine save important information relevant to resolving paths and location for the machines
+# Currently just puma will add lynx when that becomes accessible
+
+puma:
+  home: /home/u2/zvladimir
+  xdisk_own: /xdisk/gbesla/zvladimir
+  xdisk_group: /xdisk/gbesla/group
+  groups: /groups/gbesla/zvladimir
+  # No write access to rental right now
+  # Rental is also accessed differently if on login vs compute node
+  rental_compute: /rental/gbsela/mig2020/rsgrps/gbeslastudents
+  rental_login: /stage/rental/gbsela/mig2020/rsgrps/gbeslastudents
+  hostname_suffix: ".puma.hpc.arizona.edu"
+  login_hostname_patterns:
+    - "junonia"

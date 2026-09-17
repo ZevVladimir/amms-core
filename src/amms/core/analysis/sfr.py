@@ -36,6 +36,7 @@ def sfr_sky_map_from_young_stars(
     age: np.ndarray,
     *,
     dt: float = 0.1,
+    age_min: float = 0.0,
     lon_range: tuple[float, float] = (-180.0, 180.0),
     lat_range: tuple[float, float] = (-90.0, 90.0),
     bins: int | tuple[int, int] = 64,
@@ -54,7 +55,7 @@ def sfr_sky_map_from_young_stars(
     per_area is deg^2 not kpc^2
     """
     age = np.asarray(age, dtype=float)
-    young = (age >= 0.0) & (age < dt)
+    young = (age >= age_min) & (age < age_min + dt)
 
     rate = np.asarray(mass, dtype=float)[young] / (dt * 1e9)  # Msun / yr
 
@@ -76,6 +77,7 @@ def sfr_sky_map_from_young_stars(
             **(meta or {}),
             "estimator": "young_stars",
             "dt_gyr": float(dt),
+            "age_min_gyr": float(age_min),
             "n_young": int(young.sum()),
         },
     )
@@ -87,6 +89,7 @@ def sfr_map_from_young_stars(
     age: np.ndarray,
     *,
     dt: float = 0.1,
+    age_min: float = 0.0,
     axes: str = "xy",
     extent: float | tuple[float, float, float, float] = 15.0,
     bins: int | tuple[int, int] = 64,
@@ -106,7 +109,7 @@ def sfr_map_from_young_stars(
     """
     age = np.asarray(age, dtype=float)
     # Keep stars formed marginally past snapshot time which can arise from float round off
-    young = (age >= 0.0) & (age < dt)
+    young = (age >= age_min) & (age < age_min + dt)
 
     rate = np.asarray(mass, dtype=float)[young] / (dt * 1e9)  # Msun / yr
 
@@ -124,6 +127,7 @@ def sfr_map_from_young_stars(
             **(meta or {}),
             "estimator": "young_stars",
             "dt_gyr": float(dt),
+            "age_min_gyr": float(age_min),
             "n_young": int(young.sum()),
         },
     )
