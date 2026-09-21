@@ -93,6 +93,8 @@ def show_map(
         data_aspect = 1.0 if aspect == "equal" else float(aspect)
         ax.set_box_aspect(abs(y1 - y0) / abs(x1 - x0) * data_aspect)
 
+    ax.tick_params(direction="in")
+
     ax.set_xlabel(m.axis_labels[0] if m.axis_labels else f"{m.axes[0]} [kpc]")
     ax.set_ylabel(m.axis_labels[1] if m.axis_labels else f"{m.axes[1]} [kpc]")
 
@@ -119,6 +121,10 @@ def panel_grid(
     percentiles: tuple[float, float] | None = None,
     share_norm: bool = True,
     titles: list[str] | None = None,
+    hspace: float = 0.02,
+    wspace: float = 0.05,
+    h_pad: float = 0.02,
+    w_pad: float = 0.03,
     **kw,
 ):
     """
@@ -128,7 +134,8 @@ def panel_grid(
     """
     nrows = int(np.ceil(len(maps) / ncols))
     fig, axes = plt.subplots(
-        nrows, ncols, figsize=(4.2 * ncols, 4.0 * nrows), squeeze=False, constrained_layout=True
+        nrows, ncols, figsize=(4.2 * ncols, 4.0 * nrows), squeeze=False, 
+        sharex=True, sharey=True, constrained_layout=True
     )
     flat = axes.ravel()
 
@@ -149,8 +156,13 @@ def panel_grid(
         if titles is not None:
             flat[i].set_title(titles[i])
 
+    for ax in flat[: len(maps)]:
+        ax.label_outer()
+
     for ax in flat[len(maps) :]:
         ax.set_visible(False)
+
+    fig.get_layout_engine().set(hspace=hspace, wspace=wspace, h_pad=h_pad, w_pad=w_pad)
 
     if share_norm and maps:
         fig.colorbar(im, ax=axes, label=f"{maps[0].quantity} [{maps[0].unit}]")
