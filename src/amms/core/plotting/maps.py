@@ -58,6 +58,7 @@ def show_map(
     vmax: float | None = None,
     cbar: bool = True,
     label: str | None = None,
+    title: str | None = None,
     aspect: float | str = "equal",
 ):
     if ax is None:
@@ -94,6 +95,9 @@ def show_map(
 
     ax.set_xlabel(m.axis_labels[0] if m.axis_labels else f"{m.axes[0]} [kpc]")
     ax.set_ylabel(m.axis_labels[1] if m.axis_labels else f"{m.axes[1]} [kpc]")
+
+    if title is not None:
+        ax.set_title(title)
 
     if m.invert_x:
         ax.invert_xaxis()
