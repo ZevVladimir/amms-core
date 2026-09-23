@@ -59,7 +59,9 @@ def show_map(
     cbar: bool = True,
     label: str | None = None,
     title: str | None = None,
-    labelsize: float | None = None,
+    titlefontsize: float | None = None,
+    axislabelfontsize: float | None = None,
+    ticklabelfontsize: float | None = None,
     aspect: float | str = "equal",
 ):
     if ax is None:
@@ -94,13 +96,13 @@ def show_map(
         data_aspect = 1.0 if aspect == "equal" else float(aspect)
         ax.set_box_aspect(abs(y1 - y0) / abs(x1 - x0) * data_aspect)
 
-    ax.tick_params(direction="in", labelsize=labelsize)
+    ax.tick_params(direction="in", labelsize=ticklabelfontsize)
 
-    ax.set_xlabel(m.axis_labels[0] if m.axis_labels else f"{m.axes[0]} [kpc]")
-    ax.set_ylabel(m.axis_labels[1] if m.axis_labels else f"{m.axes[1]} [kpc]")
+    ax.set_xlabel(m.axis_labels[0] if m.axis_labels else f"{m.axes[0]} [kpc]", fontsize=axislabelfontsize)
+    ax.set_ylabel(m.axis_labels[1] if m.axis_labels else f"{m.axes[1]} [kpc]", fontsize=axislabelfontsize)
 
     if title is not None:
-        ax.set_title(title)
+        ax.set_title(title, fontsize=titlefontsize)
 
     if m.invert_x:
         ax.invert_xaxis()
@@ -109,8 +111,8 @@ def show_map(
 
     if cbar:
         cb = ax.figure.colorbar(im, ax=ax)
-        cb.ax.tick_params(labelsize=labelsize)
-        cb.set_label(label if label is not None else f"{m.quantity} [{m.unit}]", fontsize=labelsize)
+        cb.ax.tick_params(labelsize=ticklabelfontsize)
+        cb.set_label(label if label is not None else fr"{m.quantity} [{m.unit}]", fontsize=axislabelfontsize)
     return im
 
 
