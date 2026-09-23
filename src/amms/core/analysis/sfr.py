@@ -26,7 +26,7 @@ __all__ = [
 ]
 
 SFR_UNIT = r"$M_{\odot}yr^{-1}kpc^{-2}$"
-SFR_UNIT_SKY = r"$M_{\odot}yr^{-1}deg^{-2}"
+SFR_UNIT_SKY = r"$M_{\odot}\rm{yr}^{-1}\rm{deg}^{-2}$"
 
 
 def sfr_sky_map_from_young_stars(
@@ -68,7 +68,7 @@ def sfr_sky_map_from_young_stars(
         bins=bins,
         reduce="sum",
         per_area=True,
-        quantity="sigma_sfr",
+        quantity="SFR",
         unit=SFR_UNIT_SKY,
         axis_labels=axis_labels,
         invert_x=invert_x,
@@ -121,7 +121,7 @@ def sfr_map_from_young_stars(
         bins=bins,
         reduce="sum",
         per_area=True,
-        quantity="sigma_sfr",
+        quantity="SFR",
         unit=SFR_UNIT,
         meta={
             **(meta or {}),
@@ -155,7 +155,7 @@ def sfr_map_from_gas(
         bins=bins,
         reduce="sum",
         per_area=True,
-        quantity=r"sigma_sfr",
+        quantity="SFR",
         unit=SFR_UNIT,
         meta={**(meta or {}), "estimator": "gas_instantaneous"},
     )
