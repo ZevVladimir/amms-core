@@ -59,6 +59,7 @@ def show_map(
     cbar: bool = True,
     label: str | None = None,
     title: str | None = None,
+    labelsize: float | None = None,
     aspect: float | str = "equal",
 ):
     if ax is None:
@@ -93,7 +94,7 @@ def show_map(
         data_aspect = 1.0 if aspect == "equal" else float(aspect)
         ax.set_box_aspect(abs(y1 - y0) / abs(x1 - x0) * data_aspect)
 
-    ax.tick_params(direction="in")
+    ax.tick_params(direction="in", labelsize=labelsize)
 
     ax.set_xlabel(m.axis_labels[0] if m.axis_labels else f"{m.axes[0]} [kpc]")
     ax.set_ylabel(m.axis_labels[1] if m.axis_labels else f"{m.axes[1]} [kpc]")
@@ -108,7 +109,8 @@ def show_map(
 
     if cbar:
         cb = ax.figure.colorbar(im, ax=ax)
-        cb.set_label(label if label is not None else f"{m.quantity} [{m.unit}]")
+        cb.ax.tick_params(labelsize=labelsize)
+        cb.set_label(label if label is not None else f"{m.quantity} [{m.unit}]", fontsize=labelsize)
     return im
 
 
@@ -134,8 +136,13 @@ def panel_grid(
     """
     nrows = int(np.ceil(len(maps) / ncols))
     fig, axes = plt.subplots(
-        nrows, ncols, figsize=(4.2 * ncols, 4.0 * nrows), squeeze=False, 
-        sharex=True, sharey=True, constrained_layout=True
+        nrows,
+        ncols,
+        figsize=(4.2 * ncols, 4.0 * nrows),
+        squeeze=False,
+        sharex=True,
+        sharey=True,
+        constrained_layout=True,
     )
     flat = axes.ravel()
 
