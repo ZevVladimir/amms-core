@@ -62,6 +62,8 @@ def show_map(
     titlefontsize: float | None = None,
     axislabelfontsize: float | None = None,
     ticklabelfontsize: float | None = None,
+    cbarlabelfontsize: float | None = None,
+    cbarticklabelfontsize: float | None = None,
     aspect: float | str = "equal",
 ):
     if ax is None:
@@ -111,8 +113,8 @@ def show_map(
 
     if cbar:
         cb = ax.figure.colorbar(im, ax=ax)
-        cb.ax.tick_params(labelsize=ticklabelfontsize)
-        cb.set_label(label if label is not None else fr"{m.quantity} [{m.unit}]", fontsize=axislabelfontsize)
+        cb.ax.tick_params(labelsize=cbarticklabelfontsize)
+        cb.set_label(label if label is not None else fr"{m.quantity} [{m.unit}]", fontsize=cbarlabelfontsize)
     return im
 
 
