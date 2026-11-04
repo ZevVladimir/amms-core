@@ -60,6 +60,11 @@ reimplementing standard functionality.
 6. **Don't reinvent snapshot I/O** — wrap an existing community library.
 7. **Compute → cache → plot**: heavy scripts (batch jobs) write intermediate
    products to disk; notebooks only load those and plot. Notebooks stay light.
+8. **Products are release-shaped from birth.** Every cached product is a
+   self-describing HDF5 file with provenance attrs, written through one module.
+   The private comparison dashboard and the public per-paper data release are
+   the *same app* over different catalogs (all products vs a frozen subset), so
+   release is select + freeze + copy, never a conversion bolted on at the end.
 
 ---
 
@@ -142,6 +147,12 @@ count justifies it.
   `tests/`.
 - Start `io/` only after the sim code + library are confirmed.
 - Add a couple of tests early so later refactors don't silently break analysis.
+- **Product contract** (`products.py`): `write_product` / `read_product` over h5py,
+  required root attrs (dataset_id, kind, schema_version, core version+commit,
+  created, source), per-dataset `units`. Layout
+  `$AMMS_PRODUCTS/<dataset_id>/<kind>[_<qualifier>].h5`; dataset_id is a SIM_ID or
+  `ext_<slug>` for external comparison runs. Build this before more products
+  accumulate in an ad hoc shape.
 
 ### Phase 3 — Project template
 - Build a **cookiecutter** (or copier) template producing the per-project layout
@@ -157,6 +168,10 @@ count justifies it.
   storage path, one-line description. It lives **in the run directory**.
 - Write a scanner that walks storage, reads every `metadata.yaml`, and builds a
   pandas DataFrame (cache to parquet). This is enough to search sims initially.
+- **Product catalog**: `build_catalog()` reads product attrs only and writes
+  `catalog.parquet` (one row per product), queried with pandas/DuckDB. Derived and
+  rebuildable. Plot scripts look products up here instead of hardcoding paths —
+  this is what makes cross-run comparison "everything in one place."
 
 ### Phase 5 — Reference management (Zotero)
 - Collections = projects (items can live in multiple collections). Tags =
@@ -180,15 +195,21 @@ count justifies it.
   filenames so every figure in the paper is traceable.
 - Mention `showyourwork` (Snakemake-based, astro-oriented) as an *optional*
   later step for full paper reproducibility — not day one.
+- **Per-paper data release**: select the paper's products, copy to
+  `releases/<paper-tag>/` on `/groups` or `/rental` (never `/xdisk`), write the
+  catalog subset + checksums + a data-model README generated from the attr
+  schemas, refuse `ext_*` datasets, PI sign-off, upload to Zenodo for a DOI.
 
-### Phase 8 — Registry + dashboard (only when justified)
-- Promote the Phase 4 scanner output into a **SQLite** index (still rebuildable
-  from the `metadata.yaml` files).
-- Build a **dashboard** (Streamlit for speed, or Panel/HoloViz for richer
-  interactive plots on large data) that reads the registry, lets the person
-  filter/search sims, and shows precomputed **thumbnail** diagnostic plots
-  (precompute in the post-run pipeline — never compute on huge data live).
-  Registry + thumbnails are small enough to sync to a laptop and run locally.
+### Phase 8 — amms-viz: private and public deployments of one app
+- Promote the Phase 4 scanner output into a **SQLite** index if parquet stops
+  being enough (still rebuildable from the `metadata.yaml` files).
+- Build **`amms-viz`** (Panel/HoloViz) reading `catalog.parquet` + product files,
+  never snapshots: filter/search sims, compare products across datasets, show
+  precomputed thumbnails (never compute on huge data live).
+- Private deployment: full catalog, on a compute node or laptop with synced
+  products. Public deployment: same app over a release bundle, compiled with
+  `panel convert` to a Pyodide static site (no server). The browser downloads the
+  products, so the public tier serves maps/thumbnails, not bulk data.
 
 ---
 
@@ -214,3 +235,5 @@ Build whichever the person picks; produce real files, not just snippets.
 - Pinned environments per project; pin the core package version too.
 - Notebooks light (load + plot); heavy work in scripts run as batch jobs.
 - Every figure traceable to run + commit.
+- Every product written through `amms.core.products`, so it is catalogable and
+  releasable without rework.

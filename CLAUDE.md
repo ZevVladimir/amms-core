@@ -74,6 +74,33 @@ shipped 1D test problem (`examples/shocktube/shocktube_sod_1d`). That is enough 
 retire the *snapshot-format* questions below, and not enough to unfreeze
 `metadata.py` — no science run, no ICs, no SMUGGLE config, still no job pattern.
 
+**Freeze status as of 2026-11-02 — partially lifted** (smoke run of
+`ethan_dwarf_1e6/sh03` supplied the real param.txt, Config.sh, listing, snapshot):
+- **Lifted:** `codes/arepo.py` *output-file parsing only* (cpu.txt, sfr.txt,
+  `*-usedvalues`, arepoconfig.h); `analysis/` sanity checks (numpy-only);
+  `amms/core/ics.py` (IC fingerprint — user's choice of name).
+- **Decided:** `provenance.py` is a *separate* future module for run-level,
+  submit-time capture (git state, configs, modules, job id). `ics.py` is file-level
+  only. The `provenance.yaml` vs events.jsonl question is still open.
+- **IC sanity products live with the IC** (user's call, 2026-11-02): canonical
+  `<ics_root>/<ic_name>/sanity/`, symlinked from `$AMMS_PRODUCTS/ics/<ic_name>`.
+  Not a breach of the run-products rule — ICs are not runs — and /groups outlives
+  /xdisk. Results carry the IC sha256 so a stale product for an overwritten IC is
+  detectable. `ics_root` must come from machines.yaml (invariant 4).
+- **IC generation will become its own package later.** Core keeps *inspection*
+  (`ics.py`, generator-agnostic) and *format parsing* (`codes/makegalaxy.py`,
+  read-only); generation (templating params, running generator + grid step) goes
+  in a separate namespace package that depends on core. Generator modules expose
+  `component_budget(params) -> list[ExpectedComponent]` so checks stay generic.
+- **Still frozen, with lift criteria:** `io/` — until snapAnalysis is read and tested
+  on this run's snapshots (wrap vs own). `metadata.py` — until run #1 finishes
+  (incl. a restart) and a second run's metadata.yaml is hand-written, so fields are
+  seen generalising, not guessed from one. `codes/arepo.py` build/submit wrapper +
+  `provenance.py` — after the manual build→submit→restart workflow has been done
+  twice. `registry/`, `cli.py`, dashboard — when there are enough runs that `ls`
+  stops being enough (~5) and the restart-chain job pattern is settled. events.jsonl
+  folding — only if Slurm task arrays actually happen.
+
 ## AREPO on Puma — established 2026-09-01, first successful build and run
 
 - **Source:** `git@bitbucket.org:volkerspringel/arepo.git`, branch
@@ -232,8 +259,9 @@ Hernquist-halo + exponential-disk tool (`MakeGalaxy_puma9_modified_bulge`;
 not AREPO's). **sha256 recorded 2026-09-21:**
 `ba288d154e51774b106e296d44504eae7da263b6e84339cf5fdd4ab701930a6b`.
 
-- Header (`h5py`, no `h5dump` in `legacy-gadget`): `BoxSize=0.0`
-  (non-periodic/vacuum), `NumPart_Total=[522000 gas, 500000 halo/dm, 1044000
+- Header (`h5py`, no `h5dump` in `legacy-gadget`): `BoxSize=0.0` (header
+  value is ignored — see "IC generation routes" below; gas must still be shifted
+  into `[0, BoxSize]`), `NumPart_Total=[522000 gas, 500000 halo/dm, 1044000
   disk stars, 0, 0, 1 BH seed]`, `HubbleParam=1.0`, no bulge. PartType0 and
   PartType2 both carry `Metallicity`; PartType2 also carries
   `StellarFormationTime` (pre-set ages from the generator's
@@ -250,6 +278,92 @@ not AREPO's). **sha256 recorded 2026-09-21:**
   `src/modules/smuggle/module_smuggle.{h,cc}` and `src/io/parameters.cc`
   directly, not from docs. Confirms the "don't guess AREPO param names"
   freeze reasoning was right to be paranoid about.
+
+### IC generation routes — read 2026-10-15 (local copies under `~/smc/ics/`)
+
+Two routes, both MakeNewDisk (Torrey/Cox, Springel+05 Hernquist halo + exp disk),
+**different binaries**:
+- **Ethan's dwarf:** `MakeGalaxy_new` (Himansh, `/groups/ejahn/.../MyMakeGalaxy`) —
+  the source in `make_ics_from_ethan/MakeGalaxy/` matches it (assert string
+  `ZSIZE-1`). Then stage 2: `arepo_grid/Arepo_grid` (`ADDBACKGROUNDGRID=32`,
+  `SHIFT_BY_HALF_BOX`, BoxSize 200) → `ics_dwarf_live_1e6-with-grid.hdf5`.
+- **smc_test:** `MakeGalaxy_puma9_modified_bulge` (Himansh,
+  `/home/u19/himansh/makegalaxy_puma9`). **Its source is not on disk** (hardcodes
+  ZSIZE=512, extra debug prints) and no generator log was kept — provenance gap.
+- `bin_hdf_conv.py` produced neither file (both written HDF5 directly). The
+  garbled-name dwarf duplicate is byte-identical — a `main.c` unterminated
+  `strncpy` bug, harmless.
+
+Facts that drive decisions:
+- **AREPO terminates if any gas cell is outside `[0, BoxSize]` under
+  `GRAVITY_NOT_PERIODIC`** (`init.cc:2642-2657`); the hydro mesh is always boxed.
+  `ics_smc.hdf5` (gas at ±10 kpc, centred on 0) needs a shift and probably a
+  background grid — that is *why* Ethan's route had stage 2. Loud failure.
+- **The dwarf with-grid file is broken:** shifted twice (+100 by
+  `SHIFT_BY_HALF_BOX` in init.c, +100 by add_bggrid's own shift) → galaxy at the
+  box corner (200,200,200), collisionless particles outside the box; gas mass
+  5.97e8 → 9.69e7 Msun (84% lost) in the remap; Metallicity/StellarFormationTime
+  dropped (no METALS/STELLARAGE in that build). **Mass loss is caused by the double
+  shift:** gas centred on (200,200,200), new cells are only made for empty tree
+  leaves with centres inside (0,BoxSize)^3 (`add_bggrid.c:87-89`), and an old
+  particle with no new cell inside its Hsml deposits nothing, with no warning.
+  Only the low octant survives (12.5% of particles, 16.3% of mass with kernel
+  spillover). The second shift fires because `xmin<0` for *any* particle
+  (`add_bggrid.c:421`), and the 2 Mpc halo is still negative after +100. **Same
+  logic in arepo-smuggle** (`init.cc:2620`, `add_bggrid.cc:420,471`). Also,
+  `SHIFT_BY_HALF_BOX` runs inside `init()`, which runs for every start except
+  restart files (`main.cc:452`), so it re-shifts on a restart-from-snapshot.
+  **You cannot just drop `SHIFT_BY_HALF_BOX`:** under `GRAVITY_NOT_PERIODIC` the
+  gas-in-box check sits right after it in `process_initial_particle_positions()`
+  (`init.c:2968-2984`, same in arepo-smuggle), long before the grid's auto-shift, so
+  origin-centred gas terminates (tried 2026-10-16). Fix used: keep
+  `SHIFT_BY_HALF_BOX` in the grid build and patch `add_bggrid.c:421` to test
+  `xmin_gas_glob` (gas only, matching the box check) instead of `xmin_glob`.
+  Production build must still not set it (IC already in box coords).
+  **Collisionless particles outside the box are safe (audited 2026-10-16):** grid run
+  builds its domain from gas + box only and its gravity tree from gas only, so
+  halo/stars just get arbitrary domain keys and are written back unchanged (Ethan's
+  output: halo shifted by exactly +200, all 30M present); `do_box_wrapping` returns
+  under ADDBACKGROUNDGRID and skips non-gas under GRAVITY_NOT_PERIODIC (both codes);
+  production domain spans all particles. Real limit: the *gas* mesh is periodic even
+  with non-periodic gravity, so gas crossing a box face reappears on the opposite
+  side with wrong gravity — keep outflows well inside BoxSize. Diff the logged
+  "gas mass before/after remap". The printed `ReferenceGasPartMass` suggestion is
+  after-mass/old-N, so it inherits the loss. Do not use this file.
+- **Dwarf stage-1 IC is fine — reuse it, never regenerate just to fix the grid.**
+  `ics_dwarf_live_1e6.hdf5` sha256 `617facab35305df8b516dfbc26b50b632a44278f2c35ad4fe7d8a31b7a327f47`
+  (laptop copy, 2026-10-16). The grid step itself runs ~2 min. Puma constraints from
+  Ethan's failed attempts: NTask <= `min_topleave_num` (61 for BoxSize 200) or it
+  terminates; `MaxMemSize` (MB/task) must fit Slurm memory/task (4500 ran out of pool;
+  9000 with `cpus-per-task=2` worked). Output lands at `<InitCondFile>-with-grid`,
+  beside the input, not in `OutputDir` (`io.c:796`).
+- **MakeGalaxy's 41 h is ~40 h in velocity sampling, not setup** (DF table done at
+  1.6 h). `set_halo_velocities` (`haloset.c:154-162`, same in `bulgeset.c:118-126`)
+  recomputes `comp_phi` — a disk tree walk for R < LL = 5·R200 — on every rejection
+  attempt at a fixed position. Moving it out of the loop is exact (seed fixed
+  `srand48(666)`, no global writes). Also `OPTIMIZE = -g` (-O0) in the Makefile.
+- **Don't copy volume/softening values from `examples/galaxy_merger_star_formation_3d`**
+  — it is ~1e6 Msun cells in kpc/h. Under `REFINEMENT_VOLUME_LIMIT`, a cell with
+  Volume < 2·`MinVolume` returns "don't refine" *before* the mass criterion
+  (`criterion_refinement.cc:133` vs `:266`), so its `MinVolume 1` (kpc³) silently
+  disables mass refinement for every ~600 Msun disk cell. Same for its
+  `MinimumComovingHydroSoftening 1.0` under `ADAPTIVE_HYDRO_SOFTENING`. Its
+  `HubbleParam 0.6774` is also wrong for h=1 ICs (cgs conversions carry h²).
+- **First real run: `run/ethan_dwarf_1e6/sh03`** (resolves to
+  `/xdisk/gbesla/zvladimir/arepo-runs/...`), SH03 dry run on the gridded dwarf IC,
+  smoke-tested 10 Myr OK 2026-11-02. Needed `OVERRIDE_PEANOGRID_WARNING`: without
+  it the domain top-tree terminates at SFR onset (one unsplittable node held 4% of
+  work, 76x limit; IC had zero duplicate positions, so it develops in-run; mechanism
+  not proven). Cost: 22.6 min / 10 Myr on 94 tasks (treegrav 53%, voronoi 17%,
+  domain 14% — domain is the first knob if slow). Gas cells rose 2.37M -> 2.68M
+  (refinement, not the derefinement I predicted). SFR settling ~0.16 Msun/yr.
+  Per-run `env.sh` (R + modules) is sourced by both shells and job scripts.
+- smc_test `FactorForSofterEQS=1`: gas vertical structure was solved with the
+  SH03 effective EOS above threshold (`effmodel.c:166`), but `u` is written as a
+  flat 1e4 K and SMUGGLE has no effective EOS → expect vertical collapse at t=0.
+  Dwarf used 0 (isothermal 1e4 K), consistent with its written `u`. `U4MOD`
+  (the u4/10 hack) is off in the Makefile.
+- smc_test `Zmet0=0.032` is the MW template value (absolute Z, ~2x solar), not SMC.
 
 **Decision: build and run a plain (non-SMUGGLE) hydro+gravity+SH03-SFR dry
 run first**, to validate param.txt/units/mesh mechanics independently of
@@ -380,8 +494,29 @@ are a deliberate "you must supply this" design, not an oversight to route around
 - **h5py is the default IO backend**; pygadgetreader is a registered alternate
   for legacy binary snapshots and cross-checks. pygadgetreader is unmaintained —
   a numpy bump would otherwise break every analysis script simultaneously.
-- **Cached products live in a parallel tree `$WORK/products/<sim_id>/`**, not
+- **Cached products live in a parallel tree `$AMMS_PRODUCTS/<dataset_id>/`**, not
   inside the run directory. Keeps small derived data separately syncable.
+  *Amended 2026-10-15 from `<sim_id>/`:* comparison data (B12, professor's runs)
+  needs keys too, and the code was already writing `b12_model2/`. A `dataset_id`
+  is a SIM_ID or `ext_<slug>` (proposed `ext_b12-model2`; spelling and product
+  filenames `<kind>[_<qualifier>].h5` **not yet confirmed** — ask before baking in).
+- **Products are release-shaped from birth (decided 2026-10-15).** Goal is public
+  per-paper data releases plus a browsing tool, and daily cross-run comparison
+  from the same data. So: products are **HDF5** with required provenance attrs
+  (dataset_id, kind, schema_version, amms_core version+commit, created, source),
+  validated by pydantic `extra="forbid"`. Release = select + freeze + copy, never a
+  format conversion. The user chose HDF5 *everywhere, now* over npz-internal +
+  HDF5-at-export; do not reopen. h5py is imported **lazily inside
+  `products.py`** so `analysis/` still imports with numpy+matplotlib only.
+- **One app, two catalogs.** `amms-viz` (the reserved namespace slot), Panel/HoloViz
+  — chosen because `panel convert` yields a Pyodide static site, i.e. public
+  hosting with no server. Private deployment reads the full `catalog.parquet`;
+  public reads a release bundle. App reads catalog + products only, never
+  snapshots. Still frozen; the *product contract* is not (it describes products we
+  define, not unseen AREPO output — same reasoning as `analysis/maps.py`).
+- **Releases go to `/groups` or `/rental`, never `/xdisk`**, plus Zenodo for a DOI.
+  `ext_*` datasets are never in a public release without the owner's permission;
+  the release script refuses them. PI sign-off is a human step.
 - **`requires-python = ">=3.10"`.** Puma offers `python/3.11/3.11.4` (the `(D)`
   default) **and** `python/3.14/3.14.2`; `env/modules.txt` pins 3.11.4. Avoid
   3.11-only syntax so the floor stays honest. The floor rests on the lock-file
@@ -421,6 +556,9 @@ are a deliberate "you must supply this" design, not an oversight to route around
    `check_submit_ready()` separately reports blocking gaps. `amms submit --force`
    is allowed but records `forced: true` on the job entry, so an unlabeled run is
    a queryable field rather than an invisible one.
+10. **Products are written only through `amms.core.products`**, never bare
+   `np.savez` / `h5py.File` in a driver. A product without provenance attrs cannot
+   enter the catalog or a release, and cannot be backfilled.
 
 ## HPC access (facts about this user's setup, not preferences)
 
@@ -581,6 +719,12 @@ are a deliberate "you must supply this" design, not an oversight to route around
 `io/{base.py,backends/}` → `plotting/{amms.mplstyle,provenance.py}` →
 `analysis/cache.py` → `hpc/{slurm.py,storage.py,templates/}` →
 `registry/scan.py` → `cli.py` last (thin wrapper over everything above).
+
+Product/release track (2026-10-15, freeze-exempt): confirm `ext_` + filename
+spelling → `ids.py` ExtID/DatasetID → `products.py` (write/read, lazy h5py) →
+`Map2D.save/load` delegate → regenerate B12 products, delete `products/b12_model2/`
+(pins: transpose `values[2,3]`, Sigma_SFR 0.0488) → `build_catalog` once a second
+dataset has products → release script → `amms-viz` (frozen).
 
 `arepo.py` precedes `metadata.py` because `init_run()` and the drift check both
 call into it. For actual progress, read `git log` and the file tree — this file is
