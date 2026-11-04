@@ -131,3 +131,13 @@ def _scalar(value: Any) -> str:
         value = value.model_dump(mode="json")
     dumped = yaml.safe_dump({"_": value}, sort_keys=False, default_flow_style=True)
     return dumped.split(":", 1)[1].strip()
+
+
+def dump_record(data: dict[str, Any], header: str) -> str:
+    """
+    Machine written records (e.g. IC fingerprints, check results):
+    plain dicts, regenerated whole by a tool
+    There are no human comments to preserve for these types of records
+    """
+    lines = "".join(f"# {h}\n" for h in header.splitlines())
+    return lines + yaml.safe_dump(data, sort_keys=False, default_flow_style=False)

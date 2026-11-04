@@ -67,7 +67,7 @@ def read_header(path: str | os.PathLike) -> ICHeader:
         high = np.asarray(a.get("NumPart_Total_HighWord", np.zeros_like(low)), dtype=np.int64)
         num_part = tuple(int(n) for n in low + (high << 32))
         datasets = {
-            t: {name: str(ds.stype) for name, ds in f[f"PartType{t}"].items()}
+            t: {name: str(ds.dtype) for name, ds in f[f"PartType{t}"].items()}
             for t in range(len(num_part))
             if f"PartType{t}" in f
         }
@@ -105,7 +105,7 @@ def fingerprint(path: str | os.PathLike) -> ICFingerprint:
         path=str(p),
         size_bytes=st.st_size,
         sha256=sha256_file(p),
-        mtime=datetime.fromtimestep(st.st_mtime, timezone.utc).isoformat(),
+        mtime=datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(),
         hashed_at=datetime.now(timezone.utc).isoformat(),
         header=read_header(p),
     )
@@ -113,8 +113,8 @@ def fingerprint(path: str | os.PathLike) -> ICFingerprint:
 
 def check_upstream_hash(fp: ICFingerprint, record: str | os.PathLike) -> CheckResult:
     """
-    Compare against a sha256sum-style record ('HASH NAME' lines, ignoring other lines like hand written notes
-    that would otherwise affect the hash). If a name is recorded multiple times only use the LAST entry
+    Compare against a sha256sum-style record ('HASH NAME' lines, ignoring other lines like hand written notes).
+    If a name is recorded multiple times only use the LAST entry
     """
     by_name: dict[str, list[str]] = {}
     for line in Path(record).read_text().splitlines():
@@ -126,12 +126,18 @@ def check_upstream_hash(fp: ICFingerprint, record: str | os.PathLike) -> CheckRe
     hashes = by_name.get(fp.name, [])
     if hashes and hashes[-1] == fp.sha256:
         return CheckResult(name, Status.PASS, fp.sha256, hashes[-1])
+    if fp.sha256 in hashes:
+        return CheckResult(
+            name, Status.FAIL, fp.sha256, hashes[-1], "matches an OLDER recorded revision"
+        )
     if any(fp.sha256 in hs for hs in by_name.values()):
         return CheckResult(
             name, Status.WARN, fp.sha256, None, "content recorded under different file name"
         )
     if hashes:
-        return CheckResult(name, Status.FAIL, hashes[-1], "file changed since it was recorded")
+        return CheckResult(
+            name, Status.FAIL, fp.sha256, hashes[-1], "file changed since it was recorded"
+        )
     return CheckResult(name, Status.WARN, fp.sha256, None, f"no entry for {fp.name} in {record}")
 
 
@@ -158,5 +164,29 @@ def component_masses(path: str | os.PathLike, header: ICHeader) -> dict[int, flo
     return out
 
 
-def check_mass_budget():
-    pass
+# Per-particle masses get stored as float32 when there is no MassTable entry
+# Generator uses doubles. Use tolerance of 1e-5 for float32 while still catching real errors
+MASS_RTOL = 1e-5
+
+
+def check_mass_budget(
+    header: ICHeader,
+    masses: dict[int, float],
+    expected: list[ExpectedComponent],
+    rtol: float = MASS_RTOL,
+) -> list[CheckResult]:
+    results = []
+    for e in expected:
+        got = masses.get(e.ptype, 0.0)
+        ok = np.isclose(got, e.mass, rtol=rtol, atol=0.0)
+        results.append(
+            CheckResult(f"mass_type{e.ptype}", Status.PASS if ok else Status.FAIL, got, e.mass)
+        )
+        if e.n is not None:
+            n = header.num_part[e.ptype]
+            results.append(
+                CheckResult(
+                    f"count_type{e.ptype}", Status.PASS if n == e.n else Status.FAIL, n, e.n
+                )
+            )
+    return results

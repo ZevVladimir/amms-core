@@ -15,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-__all__ = ["detect_machine", "machine_root", "products_root"]
+__all__ = ["detect_machine", "ics_root", "machine_root", "products_root"]
 
 _MACHINES_FILE = Path(__file__).parent / "machines.yaml"
 
@@ -65,3 +65,11 @@ def machine_root(tier: str, machine: str | None = None) -> Path:
 
 def products_root(machine: str | None = None) -> Path:
     return machine_root("xdisk_own", machine) / "products"
+
+
+def ics_root(machine: str | None = None) -> Path:
+    """
+    Where ICs and their sanity products are kept. Kept on /groups not /xdisk since ICs are shared across runs and
+    /xdisk allocation gets deleted
+    """
+    return machine_root("groups", machine) / "ics"

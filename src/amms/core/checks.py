@@ -2,12 +2,12 @@
 Have a singular, standardized result type that is used for all sanity checks:
     ICs
     gridded ICs
-    pre-submmit
+    pre-submit
     snapshots
     logs
 Invariant chceks return PASS/WARN/FAIL on their own
 
-Diagnoistics (profiles/maps) are figures for a human to judge and do not produce the CheckResults type
+Diagnostics (profiles/maps) are figures for a human to judge and do not produce the CheckResults type
 Only use Stdlib so that it can be run without dependencies
 """
 
@@ -43,7 +43,7 @@ class CheckResult:
 
 def worst(results: Iterable[CheckResult]) -> Status:
     """
-    Returns the most sever status allowing for a one word summary
+    Returns the most severe status allowing for a one word summary
     """
     order = [Status.PASS, Status.WARN, Status.FAIL]
     return max((r.status for r in results), key=order.index, default=Status.PASS)
