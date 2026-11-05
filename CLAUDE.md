@@ -87,6 +87,13 @@ retire the *snapshot-format* questions below, and not enough to unfreeze
   Not a breach of the run-products rule — ICs are not runs — and /groups outlives
   /xdisk. Results carry the IC sha256 so a stale product for an overwritten IC is
   detectable. `ics_root` must come from machines.yaml (invariant 4).
+- **IC checks validated on Puma 2026-11-04** (`ics.py` + `codes/makegalaxy.py` +
+  `~/smc/scripts/ic_sanity.py`): stage-1 dwarf, gridded dwarf and smc_test all pass
+  mass/count/hash; Ethan's double-shifted file FAILs `mass_type0` at 16.25% and its
+  sha256 `3909e986…` confirms the top-level `dbl_shift_*` rename was the broken file.
+  `.parameters` is `%g` (6 sig. digits, ~5e-6 rel), which is why MASS_RTOL is 1e-5.
+  Run in `~/.venvs/amms` (bootstrapped on Puma 2026-11-04); its `activate.sh` purges
+  modules, so keep it in a different shell from the AREPO `env.sh`.
 - **IC generation will become its own package later.** Core keeps *inspection*
   (`ics.py`, generator-agnostic) and *format parsing* (`codes/makegalaxy.py`,
   read-only); generation (templating params, running generator + grid step) goes
@@ -100,6 +107,20 @@ retire the *snapshot-format* questions below, and not enough to unfreeze
   twice. `registry/`, `cli.py`, dashboard — when there are enough runs that `ls`
   stops being enough (~5) and the restart-chain job pattern is settled. events.jsonl
   folding — only if Slurm task arrays actually happen.
+
+## Citing upstream source (user's convention, 2026-11-05)
+
+Always `<checkout>:<path from checkout root>:<line>`, e.g.
+`arepo-smuggle:src/cooling_sfr/starformation.cc:646`. Never a bare filename: the two
+AREPOs share most filenames (`init.c` vs `init.cc`, `add_bggrid.c` vs `.cc`) and a bare
+`.c`/`.cc` is only a hint. Applies to CLAUDE.md, code comments and docstrings, tests.
+Line numbers are against the commits below; re-check when a checkout moves.
+
+| Alias | Location | Commit | Language |
+|---|---|---|---|
+| `arepo-smuggle` | `~/codes/arepo-smuggle` (laptop read-only copy + Puma) | `Arepo2-smuggle-mod` d323be6; Puma branch `puma-buildsystem` changes only `buildsystem/` | C++ (`.cc`) |
+| `arepo-grid` | Puma `~/codes/arepo-grid`; laptop copy `~/smc/ics/make_ics_from_ethan/arepo_grid` (unpatched) | `master` f18a5b80a3 (+ gas-only shift patch on Puma, same line numbers) | C (`.c`) |
+| `makegalaxy` | `/groups/.../ics/make_ics_from_ethan/MakeGalaxy`; laptop `~/smc/ics/make_ics_from_ethan/MakeGalaxy` | no git; source of `MakeGalaxy_new` (Ethan's dwarf). **Not** the source of smc_test's `MakeGalaxy_puma9_modified_bulge` | C, no `src/` |
 
 ## AREPO on Puma — established 2026-09-01, first successful build and run
 
@@ -291,33 +312,33 @@ Two routes, both MakeNewDisk (Torrey/Cox, Springel+05 Hernquist halo + exp disk)
   `/home/u19/himansh/makegalaxy_puma9`). **Its source is not on disk** (hardcodes
   ZSIZE=512, extra debug prints) and no generator log was kept — provenance gap.
 - `bin_hdf_conv.py` produced neither file (both written HDF5 directly). The
-  garbled-name dwarf duplicate is byte-identical — a `main.c` unterminated
+  garbled-name dwarf duplicate is byte-identical — a `makegalaxy:main.c` unterminated
   `strncpy` bug, harmless.
 
 Facts that drive decisions:
 - **AREPO terminates if any gas cell is outside `[0, BoxSize]` under
-  `GRAVITY_NOT_PERIODIC`** (`init.cc:2642-2657`); the hydro mesh is always boxed.
+  `GRAVITY_NOT_PERIODIC`** (`arepo-smuggle:src/main/init.cc:2642-2657`); the hydro mesh is always boxed.
   `ics_smc.hdf5` (gas at ±10 kpc, centred on 0) needs a shift and probably a
   background grid — that is *why* Ethan's route had stage 2. Loud failure.
 - **The dwarf with-grid file is broken:** shifted twice (+100 by
-  `SHIFT_BY_HALF_BOX` in init.c, +100 by add_bggrid's own shift) → galaxy at the
+  `SHIFT_BY_HALF_BOX` in `arepo-grid:src/init.c`, +100 by the grid code's own shift) → galaxy at the
   box corner (200,200,200), collisionless particles outside the box; gas mass
   5.97e8 → 9.69e7 Msun (84% lost) in the remap; Metallicity/StellarFormationTime
   dropped (no METALS/STELLARAGE in that build). **Mass loss is caused by the double
   shift:** gas centred on (200,200,200), new cells are only made for empty tree
-  leaves with centres inside (0,BoxSize)^3 (`add_bggrid.c:87-89`), and an old
+  leaves with centres inside (0,BoxSize)^3 (`arepo-grid:src/add_backgroundgrid/add_bggrid.c:87-89`), and an old
   particle with no new cell inside its Hsml deposits nothing, with no warning.
   Only the low octant survives (12.5% of particles, 16.3% of mass with kernel
   spillover). The second shift fires because `xmin<0` for *any* particle
-  (`add_bggrid.c:421`), and the 2 Mpc halo is still negative after +100. **Same
-  logic in arepo-smuggle** (`init.cc:2620`, `add_bggrid.cc:420,471`). Also,
+  (`arepo-grid:src/add_backgroundgrid/add_bggrid.c:421`), and the 2 Mpc halo is still negative after +100. **Same
+  logic in arepo-smuggle** (`arepo-smuggle:src/main/init.cc:2620`, `arepo-smuggle:src/add_backgroundgrid/add_bggrid.cc:420,471`). Also,
   `SHIFT_BY_HALF_BOX` runs inside `init()`, which runs for every start except
-  restart files (`main.cc:452`), so it re-shifts on a restart-from-snapshot.
+  restart files (`arepo-smuggle:src/main/main.cc:452`), so it re-shifts on a restart-from-snapshot.
   **You cannot just drop `SHIFT_BY_HALF_BOX`:** under `GRAVITY_NOT_PERIODIC` the
   gas-in-box check sits right after it in `process_initial_particle_positions()`
-  (`init.c:2968-2984`, same in arepo-smuggle), long before the grid's auto-shift, so
+  (`arepo-grid:src/init.c:2968-2984`; same in `arepo-smuggle:src/main/init.cc:2642-2657`), long before the grid's auto-shift, so
   origin-centred gas terminates (tried 2026-10-16). Fix used: keep
-  `SHIFT_BY_HALF_BOX` in the grid build and patch `add_bggrid.c:421` to test
+  `SHIFT_BY_HALF_BOX` in the grid build and patch `arepo-grid:src/add_backgroundgrid/add_bggrid.c:421` to test
   `xmin_gas_glob` (gas only, matching the box check) instead of `xmin_glob`.
   Production build must still not set it (IC already in box coords).
   **Collisionless particles outside the box are safe (audited 2026-10-16):** grid run
@@ -336,16 +357,16 @@ Facts that drive decisions:
   Ethan's failed attempts: NTask <= `min_topleave_num` (61 for BoxSize 200) or it
   terminates; `MaxMemSize` (MB/task) must fit Slurm memory/task (4500 ran out of pool;
   9000 with `cpus-per-task=2` worked). Output lands at `<InitCondFile>-with-grid`,
-  beside the input, not in `OutputDir` (`io.c:796`).
+  beside the input, not in `OutputDir` (`arepo-grid:src/io.c:796`).
 - **MakeGalaxy's 41 h is ~40 h in velocity sampling, not setup** (DF table done at
-  1.6 h). `set_halo_velocities` (`haloset.c:154-162`, same in `bulgeset.c:118-126`)
+  1.6 h). `set_halo_velocities` (`makegalaxy:haloset.c:154-162`, same in `makegalaxy:bulgeset.c:118-126`)
   recomputes `comp_phi` — a disk tree walk for R < LL = 5·R200 — on every rejection
   attempt at a fixed position. Moving it out of the loop is exact (seed fixed
   `srand48(666)`, no global writes). Also `OPTIMIZE = -g` (-O0) in the Makefile.
 - **Don't copy volume/softening values from `examples/galaxy_merger_star_formation_3d`**
   — it is ~1e6 Msun cells in kpc/h. Under `REFINEMENT_VOLUME_LIMIT`, a cell with
   Volume < 2·`MinVolume` returns "don't refine" *before* the mass criterion
-  (`criterion_refinement.cc:133` vs `:266`), so its `MinVolume 1` (kpc³) silently
+  (`arepo-smuggle:src/refinement/criterion_refinement.cc:133` vs `:266`), so its `MinVolume 1` (kpc³) silently
   disables mass refinement for every ~600 Msun disk cell. Same for its
   `MinimumComovingHydroSoftening 1.0` under `ADAPTIVE_HYDRO_SOFTENING`. Its
   `HubbleParam 0.6774` is also wrong for h=1 ICs (cgs conversions carry h²).
@@ -359,7 +380,7 @@ Facts that drive decisions:
   (refinement, not the derefinement I predicted). SFR settling ~0.16 Msun/yr.
   Per-run `env.sh` (R + modules) is sourced by both shells and job scripts.
 - smc_test `FactorForSofterEQS=1`: gas vertical structure was solved with the
-  SH03 effective EOS above threshold (`effmodel.c:166`), but `u` is written as a
+  SH03 effective EOS above threshold (`makegalaxy:effmodel.c:166`), but `u` is written as a
   flat 1e4 K and SMUGGLE has no effective EOS → expect vertical collapse at t=0.
   Dwarf used 0 (isothermal 1e4 K), consistent with its written `u`. `U4MOD`
   (the u4/10 hack) is off in the Makefile.
@@ -395,10 +416,10 @@ Dry-run `Config.sh` candidate (derived from `Template-Config.sh` comments +
 **SMUGGLE findings (source-verified, file:line cited on
 `/home/u2/zvladimir/codes/arepo-smuggle`):**
 - SMUGGLE is a plugin module (`BaseModule`/`ModuleManager`), not wired
-  through the legacy `parameters.cc` tag list. `onRegisterParameters` in
-  `src/modules/smuggle/module_smuggle.cc:42-91` is the authoritative param
+  through the legacy `arepo-smuggle:src/io/parameters.cc` tag list. `onRegisterParameters` in
+  `arepo-smuggle:src/modules/smuggle/module_smuggle.cc:42-91` is the authoritative param
   list — not the doc stub, and not `parameters.cc`.
-- **`SMUGGLE_SFR` requires `USE_SFR`** (`smuggle_sfr.cc:25`) — layered on
+- **`SMUGGLE_SFR` requires `USE_SFR`** (`arepo-smuggle:src/modules/smuggle/smuggle_sfr.cc:25`) — layered on
   top of, not exclusive with, the base SFR switch. The classic SH03 params
   already sitting in `zev_smcic_params.txt` (`MaxSfrTimescale`, `FactorSN`,
   `FactorEVP`, `TempSupernova`, `TempClouds`, `FactorForSofterEQS`) are
@@ -406,9 +427,9 @@ Dry-run `Config.sh` candidate (derived from `Template-Config.sh` comments +
   (~line 1962) and **do not apply once `SMUGGLE_SFR` is on** — different
   parameterization entirely (density-threshold-based, not timescale-based).
 - `SMUGGLE_RADIATION_FEEDBACK` requires both `SMUGGLE_STAR_FEEDBACK` and
-  `GFM_STELLAR_EVOLUTION` (`parameters.cc:3386`), but
+  `GFM_STELLAR_EVOLUTION` (`arepo-smuggle:src/io/parameters.cc:3386`), but
   `ModuleSmuggle::onCheckModuleDependencies` is a no-op
-  (`module_smuggle.cc:40`) — so **minimal `SMUGGLE_STAR_FEEDBACK` (thermal
+  (`arepo-smuggle:src/modules/smuggle/module_smuggle.cc:40`) — so **minimal `SMUGGLE_STAR_FEEDBACK` (thermal
   injection only, no radiation feedback) does not require
   `GFM_STELLAR_EVOLUTION`.**
 - `METALS` requires `USE_SFR` (`parameters.cc`, cross-module `#error` block
@@ -418,7 +439,7 @@ Dry-run `Config.sh` candidate (derived from `Template-Config.sh` comments +
   `METALS`/`STELLARAGE` already required by the IC's fields).
 
 **Open blocker — physical, not mechanical.** `onRegisterParameters`
-(`module_smuggle.cc:53-67`) registers 8 SMUGGLE parameters via plain
+(`arepo-smuggle:src/modules/smuggle/module_smuggle.cc:53-67`) registers 8 SMUGGLE parameters via plain
 `add_param_double`/`add_param_int` with **no default** — `param.txt` must
 supply real values or the run refuses to start: `CritOverDensity`,
 `DensThreshold`, `SfrEfficiency` (SFR); `FeedbackEfficiency`,
@@ -428,7 +449,7 @@ supply real values or the run refuses to start: `CritOverDensity`,
 a plausible-but-wrong calibration number here fails silently as wrong
 physics. Source candidates: Marinacci et al. 2019 (arXiv:1905.08806, cited
 in the doc stub) or Federico Marinacci directly. **`FeedbackWeightingType`'s
-switch has now been read** (`stellar_feedback_util.cc:319-364`) — it selects
+switch has now been read** (`arepo-smuggle:src/modules/smuggle/stellar_feedback_util.cc:319-364`) — it selects
 the feedback-kernel weighting, not the calibration constants: `0` top-hat/volume,
 `1` top-hat/mass, `2` kernel-weighted volume, `3` kernel-weighted mass, `4`
 omega-weighted, `5` density+distance-weighted (uses `FeedbackWeightingPow1/2`),

@@ -1,5 +1,5 @@
 """
-Pins the MakeGalaxy mass split (structure.c:77-90) against real IC headers.
+Pins the MakeGalaxy mass split (makegalaxy:structure.c:77-90) against real IC headers.
 
 The expected values are MassTable * N read from the actual generated files, so a change to
 component_budget that disagrees with what the binary wrote fails here. Fixtures are the two
@@ -14,7 +14,7 @@ from amms.core.codes.makegalaxy import component_budget, read_input, read_parame
 
 DATA = Path(__file__).parent / "data"
 
-# .parameters is written with %g (main.c write_header): 6 significant digits, e.g. M200 1.84741
+# .parameters is written with %g (makegalaxy:main.c:180, write_header): 6 significant digits, e.g. M200 1.84741
 # vs 1.8474050 actually used. Budgets from it are only good to ~5e-6 relative, the same reason
 # ics.MASS_RTOL is 1e-5
 REL = 1e-5
@@ -61,7 +61,7 @@ def test_read_parameters_stops_at_done(tmp_path):
 
 
 def test_read_input_mirrors_c_parser(tmp_path):
-    # read_param.c: first two whitespace tokens, '%' lines skipped, trailing junk ignored
+    # makegalaxy:read_param.c:223-226: first two whitespace tokens, '%' lines skipped, trailing junk ignored
     p = tmp_path / "in.txt"
     p.write_text("V200   40.91 #45.0  % comment\n%LAMBDA 0.038\nCC 15.0\n\nlonetoken\n")
     assert read_input(p) == {"V200": "40.91", "CC": "15.0"}
