@@ -14,28 +14,39 @@ import hashlib
 import os
 import re
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import h5py
 import numpy as np
 
 from amms.core.checks import CheckResult, Status
+from amms.core.ids import IC_TAG_RE
 
 __all__ = [
     "ExpectedComponent",
     "ICFingerprint",
     "ICHeader",
+    "ICTag",
+    "check_ic_tag",
     "check_mass_budget",
     "check_upstream_hash",
     "component_masses",
     "fingerprint",
     "read_header",
+    "read_tags",
+    "register_tag",
     "sha256_file",
 ]
 
 _CHUNK = 8 * 1024 * 1024
 _SHA256_SUM_LINE = re.compile(r"^([0-9a-f]{64})\s+\*?(\S.*)$")
+
+_TAGS_HEADER = (
+    "IC tag registry: one tag = one IC file, identified by sha256.\n"
+    "Written only by amms.core.ics.register_tag. Never hand-edit, never reuse a tag:\n"
+    "a regenerated IC gets the next version (e.g. edw1-edw2)"
+)
 
 
 def sha256_file(path: str | os.PathLike) -> str:
@@ -190,3 +201,63 @@ def check_mass_budget(
                 )
             )
     return results
+
+
+@dataclass(frozen=True)
+class ICTag:
+    tag: str
+    sha256: str
+    path: (
+        str  # where the file was when registered. Used as information since sha256 is the identity
+    )
+    registered: str  # ISO date
+
+
+def read_tags(registry: str | os.PathLike) -> dict[str, ICTag]:
+    import yaml  # keeps fingerprint() usable in venvs without pyyaml
+
+    p = Path(registry)
+    data = yaml.safe_load(p.read_text()) if p.exists() else None
+    return {t: ICTag(tag=t, **v) for t, v in (data or {}).items()}
+
+
+def register_tag(registry: str | os.PathLike, tag: str, ic_path: str | os.PathLike) -> ICTag:
+    """
+    Add a tag -> this file's sha256
+    Re-registering the same tag for the same file is a no-op
+    Anything making a tag or file ambiguous raises
+    Read-modify-write is fine here
+    """
+    from amms.core._yamlio import dump_record, write_atomic
+
+    if not IC_TAG_RE.match(tag):
+        raise ValueError(f"{tag!r} is not a valid IC tag: lowercase letters then digits, e.g. edw1")
+    tags = read_tags(registry)
+    p = Path(ic_path).resolve()
+    sha = sha256_file(p)
+    if tag in tags:
+        if tags[tag].sha256 == sha:
+            return tags[tag]
+        raise ValueError(f"tag {tag!r} already names {tags[tag].path}; tags are never reused")
+    for other in tags.values():
+        if other.sha256 == sha:
+            raise ValueError(f"{p.name} is already registered as {other.tag!r}")
+    tags[tag] = ICTag(tag, sha, str(p), date.today().isoformat())
+    body = {t: {k: v for k, v in asdict(e).items() if k != "tag"} for t, e in tags.items()}
+    write_atomic(Path(registry), dump_record(body, _TAGS_HEADER))
+    return tags[tag]
+
+
+def check_ic_tag(tag: str, ic_path: str | os.PathLike, registry: str | os.PathLike) -> CheckResult:
+    """
+    The IC a run will read must be the file its sim_id's tag names
+    """
+    tags = read_tags(registry)
+    if tag not in tags:
+        return CheckResult(
+            "ic_tag", Status.FAIL, tag, None, f"unregistered IC tag (see {registry})"
+        )
+    sha = sha256_file(ic_path)
+    ok = sha == tags[tag].sha256
+    detail = "" if ok else f"run's IC is not the file {tag!r} names ({tags[tag].path})"
+    return CheckResult("ic_tag", Status.PASS if ok else Status.FAIL, sha, tags[tag].sha256, detail)

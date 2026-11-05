@@ -73,3 +73,11 @@ def ics_root(machine: str | None = None) -> Path:
     /xdisk allocation gets deleted
     """
     return machine_root("groups", machine) / "ics"
+
+
+def sims_root(machine: str | None = None) -> Path:
+    """
+    Where the runs are placed, <sims_root>/<project>/<sim_id>
+    Placed on /xdisk for fast access
+    """
+    return machine_root("xdisk_own", machine) / "sims"

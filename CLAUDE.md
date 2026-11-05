@@ -378,6 +378,12 @@ Facts that drive decisions:
   not proven). Cost: 22.6 min / 10 Myr on 94 tasks (treegrav 53%, voronoi 17%,
   domain 14% — domain is the first knob if slow). Gas cells rose 2.37M -> 2.68M
   (refinement, not the derefinement I predicted). SFR settling ~0.16 Msun/yr.
+  **Full 1 Gyr run done 2026-11-05 in ONE 48 h job: 20.5 h wall** (48.8 Myr/h; the
+  smoke run's 26.6 Myr/h was startup + SFR-onset transient, so early-phase cost
+  over-predicts ~2x). 28,727 steps, 17 Peano overrides, treegrav 58% / domain 16% /
+  voronoi 14%. End state: SFR 0.095 Msun/yr, 1.26e8 Msun formed (21% of initial
+  gas), 536,131 star particles within 5.2 kpc, gas cells 1.94M, no runaways. No
+  restart happened, so cpu.txt-cumulative-across-restarts is still unverified.
   Per-run `env.sh` (R + modules) is sourced by both shells and job scripts.
 - smc_test `FactorForSofterEQS=1`: gas vertical structure was solved with the
   SH03 effective EOS above threshold (`makegalaxy:effmodel.c:166`), but `u` is written as a
@@ -389,7 +395,7 @@ Facts that drive decisions:
 **Decision: build and run a plain (non-SMUGGLE) hydro+gravity+SH03-SFR dry
 run first**, to validate param.txt/units/mesh mechanics independently of
 SMUGGLE calibration, before spending time on SMUGGLE physics.
-**Decision: run directory is `arepo-smuggle/run/smc_test/sh03`** (mirrors
+**[SUPERSEDED 2026-11-05 by the Puma layout in Settled]** **Decision: run directory is `arepo-smuggle/run/smc_test/sh03`** (mirrors
 the shocktube test's `run/` convention, symlinked onto `/xdisk` on Puma) —
 chosen over nesting it under the `smc` project repo, since `codes/arepo.py`
 (which would own that convention) is still frozen. Slug is `sh03`, named for
@@ -512,6 +518,20 @@ are a deliberate "you must supply this" design, not an oversight to route around
   round-trip so exactly one spelling exists per identity. **No physics prefix** —
   it duplicates `physics:` and becomes a lie after an nbody→hydro restart, by
   which point it is baked into published figure filenames.
+- **SIM_ID is now `<project>_<NNN>_<ic>_<slug>`** (user's call 2026-11-05, replacing
+  the 3-field form before any ID existed): `smc_001_edw1_sh03`. `NNN` stays
+  **per project, across ICs**, so it alone is unique within a project. `ic` is a
+  versioned tag `^[a-z]+[0-9]+$` (`IC_TAG_RE`, defined in `ids.py`, imported by
+  `ics.py`), enforced by the grammar for *shape* and by the registry
+  (`ics/ic_tags.yaml`, `ics.check_ic_tag`) for *existence and sha256*. Tags never
+  reused; one tag = one file. A run not started from a single IC (e.g. resumed from
+  another run's snapshot) carries its lineage's root IC tag; the parent run goes in
+  metadata.yaml. Proposed tags: `edw1` = gridded Ethan dwarf (`efcaf95e…`),
+  `smct1` = smc_test (`ba288d15…`).
+- **Puma layout (decided 2026-11-05, replaces the `arepo-smuggle/run/` stopgap):**
+  own repos at `~/` (mirrors laptop), upstream codes in `~/codes/`, runs at
+  `<xdisk_own>/sims/<project>/<sim_id>/` via `sims_root()` (`~/sims` is a convenience
+  link only). `arepo-smuggle/run` stays only for AREPO's own `test.py` examples.
 - **h5py is the default IO backend**; pygadgetreader is a registered alternate
   for legacy binary snapshots and cross-checks. pygadgetreader is unmaintained —
   a numpy bump would otherwise break every analysis script simultaneously.
