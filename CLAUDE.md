@@ -119,7 +119,20 @@ Tags registered: `edw1`, `smct1`. amms-core: 60 tests pass on laptop and Puma.
 **Built and validated:** `checks.py`, `ics.py` (fingerprint, budget, upstream hash,
 tag registry), `codes/makegalaxy.py`, `codes/arepo.py` (usedvalues, config, sfr, cpu,
 Units), `plotting/provenance.py`, `ids.py` 4-field SIM_ID, `paths.{ics,sims}_root`.
-Drivers in `~/smc/scripts`: `ic_sanity.py`, `run_summary.py`. `check_snap.py` is
+**Generic drivers move into the package (user, 2026-11-06)** — `ic_sanity`,
+`run_summary`, `plot_sfh`, new `check_snap` are AREPO-generic, not smc-specific;
+chosen over an unpackaged `amms-core/scripts/` because users are the user + group,
+so API-versioning cost is low. Project-specific drivers (`sfr_maps_b12.py`,
+`plot_radec.py`) and `bin_hdf_conv.py` (pygadgetreader, legacy-gadget venv) stay
+in project repos. **`amms.core.tools` + dispatch-only `cli.py` — freeze lifted for
+dispatch only (user, 2026-11-06).** Commands `check-snap`, `ic-sanity`, `plot-sfh`,
+`run-summary` (dict dispatch to `tools.<module>.main(argv)`, each tool owns its
+argparse with `prog="amms <cmd>"`; `tests/test_cli.py`). **Reminder: add
+scan/submit/init to `cli.py` once their own freeze criteria are met (~5 runs,
+restart-chain pattern settled)** — they are still frozen. Tools pass
+`repo=Path(__file__).parent` to savefig — under the console script `__main__` is
+the venv wrapper, so default provenance would record `code: None`.
+Until moved: drivers in `~/smc/scripts`: `ic_sanity.py`, `run_summary.py`. `check_snap.py` is
 on Puma only, presumably still in the original run dir
 `~/codes/arepo-smuggle/run/ethan_dwarf_1e6/sh03/` (not on laptop as of 2026-11-06;
 it may have moved with the run to `~/sims/smc/smc_001_edw1_sh03/`). Fold into
@@ -151,9 +164,11 @@ sanity) + a `Series` product. **User answers (2026-11-05):**
   2026-11-06):** `<rental>/LegacySims/Besla2012`, rental = `machines.yaml`
   `rental_{compute,login}` (`/rental/...` vs `/stage/rental/...`; the yaml had a
   `gbsela` typo, user fixing). Proposed `datasets/b12.py` holds only the relative
-  part. Open: is the `/xdisk/gbesla/group/b12` copy identical (then rental =
-  durable original, xdisk = what jobs read, since /rental is no-compute), and does
-  Besla2012 hold both models?
+  part. **Answered 2026-11-06:** `LegacySims/Besla2012` holds Model 1 and 2 (the
+  full sims); the `/xdisk/gbesla/group/b12` copy is only ONE Model 2 snapshot
+  (`snapshot_069`). Plan: rental = durable original, stage the snapshots needed
+  for analysis onto /xdisk (rental is no-compute). Staging destination not yet
+  decided.
 Read `snapAnalysis` next (io/ lift criterion). Today every B12 driver repeats
 readsnap→to_kpc→galaxy_mask→age inline (`lmcsmcmw/scripts/sfr_maps_b12.py`).
 
