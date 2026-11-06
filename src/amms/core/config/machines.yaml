@@ -8,8 +8,8 @@ puma:
   groups: /groups/gbesla/zvladimir
   # No write access to rental right now
   # Rental is also accessed differently if on login vs compute node
-  rental_compute: /rental/gbsela/mig2020/rsgrps/gbeslastudents
-  rental_login: /stage/rental/gbsela/mig2020/rsgrps/gbeslastudents
+  rental_compute: /rental/gbesla/mig2020/rsgrps/gbeslastudents
+  rental_login: /stage/rental/gbesla/mig2020/rsgrps/gbeslastudents
   hostname_suffix: ".puma.hpc.arizona.edu"
   login_hostname_patterns:
     - "junonia"

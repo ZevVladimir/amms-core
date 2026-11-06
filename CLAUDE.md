@@ -108,6 +108,82 @@ retire the *snapshot-format* questions below, and not enough to unfreeze
   stops being enough (~5) and the restart-chain job pattern is settled. events.jsonl
   folding — only if Slurm task arrays actually happen.
 
+## Current state and next steps (handoff, 2026-11-05) — update or delete as items land
+
+**Puma layout now live:** repos at `~/{amms-core,smc,lmcsmcmw}`, upstream codes in
+`~/codes/{arepo-smuggle,arepo-grid}`, runs in `~/sims -> /xdisk/gbesla/zvladimir/sims`,
+ICs + `ic_tags.yaml` in `/groups/gbesla/zvladimir/ics`. Per-run `env.sh` (R + AREPO
+build modules) is sourced in a *different* shell from `~/amms-core/env/activate.sh`.
+Tags registered: `edw1`, `smct1`. amms-core: 60 tests pass on laptop and Puma.
+
+**Built and validated:** `checks.py`, `ics.py` (fingerprint, budget, upstream hash,
+tag registry), `codes/makegalaxy.py`, `codes/arepo.py` (usedvalues, config, sfr, cpu,
+Units), `plotting/provenance.py`, `ids.py` 4-field SIM_ID, `paths.{ics,sims}_root`.
+Drivers in `~/smc/scripts`: `ic_sanity.py`, `run_summary.py`. `check_snap.py` is
+on Puma only, presumably still in the original run dir
+`~/codes/arepo-smuggle/run/ethan_dwarf_1e6/sh03/` (not on laptop as of 2026-11-06;
+it may have moved with the run to `~/sims/smc/smc_001_edw1_sh03/`). Fold into
+`analysis/sanity.py`.
+
+**Priority shift (2026-11-05):** user will do B12 (LMC/SMC SFH, SFR, gas, distances)
+analysis *while* own runs go. Goal: one analysis/plot code path for B12 and own runs.
+Proposed: a per-source loader interface (galaxies, snapshots/times, per
+(snap, galaxy, component) arrays in canonical units kpc/km/s/Msun/Gyr) with B12 quirks
+kept in `datasets/b12.py`; new source-agnostic `analysis/` (centres/orbits, gas,
+sanity) + a `Series` product. **User answers (2026-11-05):**
+- Distances: both LMC–SMC separation and each-to-MW-centre; compare against
+  observations (`datasets/patel2020.py`) *and* other sims. Present-day snapshot
+  first, but every function takes a snapshot so past snapshots extend for free.
+- Gas: within a radius of the LMC/SMC centre first; ID-membership (incl. Stream)
+  later — `selection` argument, both implemented.
+- SFH: from present-day snapshot stellar ages (B12; exclude the ft==0 bin) first,
+  then own runs. Pending check: does own run's PartType4 have
+  `StellarFormationTime` without `STELLARAGE`? If not, add STELLARAGE to every
+  future Config.sh.
+- `lmcsmcmw` IS the `mwlmcsmc` project repo (name differs).
+- Canonical units kpc / km/s / Msun / **Gyr**; AREPO loading must convert (Units
+  gives Myr today — add Gyr) and state conventions on load.
+- B12 identity: user floated "b12 as an IC tag"; proposed instead `source_id`
+  (SIM_ID *or* dataset name `b12_model1`/`b12_model2`) with equal standing in
+  analysis/products/plots — matches the settled "read-only comparison entries"
+  plan. Awaiting user's choice. B12 Model 1 + Model 2 full-sim paths: user to
+  supply (only model2 snaps path known). **B12 also lives on /rental (user,
+  2026-11-06):** `<rental>/LegacySims/Besla2012`, rental = `machines.yaml`
+  `rental_{compute,login}` (`/rental/...` vs `/stage/rental/...`; the yaml had a
+  `gbsela` typo, user fixing). Proposed `datasets/b12.py` holds only the relative
+  part. Open: is the `/xdisk/gbesla/group/b12` copy identical (then rental =
+  durable original, xdisk = what jobs read, since /rental is no-compute), and does
+  Besla2012 hold both models?
+Read `snapAnalysis` next (io/ lift criterion). Today every B12 driver repeats
+readsnap→to_kpc→galaxy_mask→age inline (`lmcsmcmw/scripts/sfr_maps_b12.py`).
+
+**Open, roughly in order:**
+1. ~~Tests for `codes/arepo.py`~~ — done 2026-11-06, `tests/test_arepo.py` (fixtures
+   built from upstream printf formats). Found two silent bugs, both fixed by user:
+   `read_config` returned the `AREPOCONFIG_H` include guard as a flag; sfr.txt col 6
+   (`cum_mass_stars`) is a file-static that resets on every restart
+   (`arepo-smuggle:src/cooling_sfr/starformation.cc:47`), so `read_sfr` now rebuilds
+   it as `cumsum(col 5)`. Validated on real sh03 sfr.txt (4e-7 rel vs raw, no restart).
+2. First science figure: SFH from `read_sfr` → `~/smc/scripts/plot_sfh.py` →
+   `$AMMS_PRODUCTS/<sim_id>/figures/sfh_sfrtxt.png` (filename user-approved
+   2026-11-06; `_sfrtxt` leaves room for an age-based `sfh_*`). Binned rate uses
+   `analysis.sfr.sfh` on per-step mass, never interpolation of the cumulative.
+   Laptop copy of sh03 sfr.txt at `~/arepo-sims-output/sfr.txt` (no usedvalues
+   beside it).
+3. `analysis/sanity.py`: per-snapshot invariants (`check_snap.py` logic) + mass
+   conservation (gas + new stars vs initial gas; M* vs sfr.txt cumulative).
+4. Snapshot maps over time (existing `maps.py`/`panel_grid`), rotation curve and
+   scale-height evolution. Snapshot reading stays in drivers (`io/` frozen).
+5. IC diagnostic plots (profiles vs analytic, rotation curve vs MakeGalaxy `.vc`
+   — needs `codes/makegalaxy.read_vc`, layout from source first — Toomre Q,
+   Z/age distributions); run on edw1 and smct1.
+6. smc_test regeneration decisions: Zmet0 (0.032 is 2x solar), FactorForSofterEQS=1,
+   halo truncation, V200's assumed h (also ask Ethan for his dwarf).
+7. Archive policy for finished runs (only copy is on /xdisk; expiry unknown).
+8. Migrate `lmcsmcmw/scripts/plot_*.py` from bare `savefig` to provenance.savefig.
+9. Hand-written `metadata.yaml` for run #1: fill remaining `<...>` fields,
+   `status: done`, sim_id `smc_001_edw1_sh03`.
+
 ## Citing upstream source (user's convention, 2026-11-05)
 
 Always `<checkout>:<path from checkout root>:<line>`, e.g.
@@ -370,8 +446,9 @@ Facts that drive decisions:
   disables mass refinement for every ~600 Msun disk cell. Same for its
   `MinimumComovingHydroSoftening 1.0` under `ADAPTIVE_HYDRO_SOFTENING`. Its
   `HubbleParam 0.6774` is also wrong for h=1 ICs (cgs conversions carry h²).
-- **First real run: `run/ethan_dwarf_1e6/sh03`** (resolves to
-  `/xdisk/gbesla/zvladimir/arepo-runs/...`), SH03 dry run on the gridded dwarf IC,
+- **First real run: `smc_001_edw1_sh03`** at `/xdisk/gbesla/zvladimir/sims/smc/smc_001_edw1_sh03`
+  (moved 2026-11-05 from `arepo-smuggle/run/ethan_dwarf_1e6/sh03`; `check_ic_tag`
+  PASS after the move), SH03 dry run on the gridded dwarf IC,
   smoke-tested 10 Myr OK 2026-11-02. Needed `OVERRIDE_PEANOGRID_WARNING`: without
   it the domain top-tree terminates at SFR onset (one unsplittable node held 4% of
   work, 76x limit; IC had zero duplicate positions, so it develops in-run; mechanism
@@ -470,12 +547,10 @@ SMUGGLE params elsewhere in the same function (`MinMassFracForStellarEvolution`,
 `MaxStromRadFac`) use `add_param_double_with_default` — so the missing defaults
 are a deliberate "you must supply this" design, not an oversight to route around.
 
-**Next steps:**
-1. Finish the dry-run `param.txt` (needs `TimeBegin`/`TimeMax` for a short
-   smoke test, per-type softenings, output cadence) and settle the three
-   undecided `Config.sh` flags above.
-2. Build: `make TARGET_DIR=arepo-smuggle/run/smc_test/sh03`, then a short
-   interactive `mpiexec -n N ./Arepo param.txt` smoke test before `sbatch`.
+**Next steps (smc_test; written 2026-09-21, see "Current state" for the live list):**
+1. Fix the IC first (Zmet0, FactorForSofterEQS — above), then reuse
+   `smc_001_edw1_sh03`'s Config.sh/param.txt/env.sh as the template.
+2. Build with `make TARGET_DIR=~/sims/smc/<sim_id>` (not `arepo-smuggle/run/`).
 3. In parallel: source the 8 SMUGGLE calibration values (paper or Federico).
    `FeedbackWeightingType`'s switch has been read (see above) — it narrows
    which other params are live but does not supply values.

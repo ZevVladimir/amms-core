@@ -84,15 +84,6 @@ class SimID:
         """Returns a new SimID with the same project and number and IC but a new description slug"""
         return SimID(self.project, self.number, self.ic, slugify(slug))
 
-    @property
-    def ic_tag(self) -> str:
-        """
-        First slug token, a versioned IC tag by convention
-        Not validated here
-        ids.py imports nothing else from the package. Instead this is done by amms.core.ics.check_ic_tag
-        """
-        return self.slug.split("-", 1)[0]
-
 
 def slugify(text: str) -> str:
     """Converts a string into a slug valid for SimID"""

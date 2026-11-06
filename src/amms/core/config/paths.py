@@ -15,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-__all__ = ["detect_machine", "ics_root", "machine_root", "products_root"]
+__all__ = ["detect_machine", "ics_root", "machine_root", "products_root", "sims_root"]
 
 _MACHINES_FILE = Path(__file__).parent / "machines.yaml"
 

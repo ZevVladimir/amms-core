@@ -52,7 +52,8 @@ def read_config(path: str | os.PathLike) -> dict[str, str | None]:
     out = {}
     for line in Path(path).read_text().splitlines():
         m = re.match(r"#define\s+(\S+)(?:\s+(\S+))?", line)
-        if m:
+        # prepare-config.py wraps the defines in an include guard but it is not a build option
+        if m and m[1] != "AREPOCONFIG_H":
             out[m[1]] = m[2]
     return out
 
@@ -90,6 +91,10 @@ class Units:
     def mass_msun(self) -> float:
         return self.mass_g / self.hubble / SOLAR_MASS_G
 
+    @property
+    def time_gyr(self) -> float:
+        return self.time_myr / 1e3
+
 
 @dataclass(frozen=True)
 class SfrLog:
@@ -105,7 +110,7 @@ class SfrLog:
         np.ndarray
     )  # rate_in_msunperyear, Msun/yr: what the stochastic spawning actually made
     mass_formed_step: np.ndarray  # total_sum_mass_stars: formed this step
-    mass_formed_cum: np.ndarray  # cum_mass_stars: formed since the start
+    mass_formed_cum: np.ndarray  # mass_formed_cum: rebuilt as cumsum(mass_formed_step); upstream cum_mass_stars resets on restart
     rows_dropped: int  # rows superseded by a restart (see read_sfr() below)
 
 
@@ -120,6 +125,10 @@ def read_sfr(path: str | os.PathLike) -> SfrLog:
     later_min = np.append(np.minimum.accumulate(t[::-1])[::-1][1:], np.inf)
     keep = t < later_min
     d = d[keep]
+    # cum_mass_stars is a file-static reset to 0 on every (re)start
+    # (arepo-smuggle:src/cooling_sfr/starformation.cc:47), not a restart state
+    # Column 6 starts counting from the last start. Rebuild it using the per-step mass of the kept rows
+    d[:, 5] = np.cumsum(d[:, 4])
     return SfrLog(*(d[:, i] for i in range(6)), rows_dropped=int((~keep).sum()))
 
 
