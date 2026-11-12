@@ -19,6 +19,7 @@ from amms.core.analysis.frames import Frame
 
 H = 0.7  # in the GB12 simulations h=0.7 which is included in the pygadgetreader outputs
 GADGET_TIME_TO_GYR = 0.9778  # 1 (kpc/h)/(km/s) = 0.9778 Gyr/h
+KPC_PER_GYR_PER_KMS = 1.0227
 
 N_LMC_INIT = 1_400_000
 N_SMC_INIT = 414_000
