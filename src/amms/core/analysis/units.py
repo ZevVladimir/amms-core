@@ -1,0 +1,2 @@
+GADGET_TIME_TO_GYR = 0.9778  # 1 (kpc/h)/(km/s) = 0.9778 Gyr/h
+KPC_PER_GYR_PER_KMS = 1.0227
