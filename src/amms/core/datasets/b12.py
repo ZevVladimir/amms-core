@@ -7,15 +7,18 @@ This is a GADGET-3 run with legacy snapshots found in
 Reason for including in core is that this is a comparison simulation without the intent of re-running it again
 so any projects that want to analyze it can pull from the core
 
-Does not use pygadgetreader and functions only take in numpy arrays
+Array functions are numpy arrays only
+load(), snapshot_time_gyr() lazily import pygadgetreader
 """
 
 from __future__ import annotations
 
 import numpy as np
 
+from amms.core.analysis.frames import Frame
+
 H = 0.7  # in the GB12 simulations h=0.7 which is included in the pygadgetreader outputs
-GADGET_TIME_TO_GYR = 0.97  # kpc/Gyr <-> km/s conversion
+GADGET_TIME_TO_GYR = 0.9778  # 1 (kpc/h)/(km/s) = 0.9778 Gyr/h
 
 N_LMC_INIT = 1_400_000
 N_SMC_INIT = 414_000
@@ -42,6 +45,14 @@ MW_CENTER = (0.0, 0.0, 0.0)  # kpc
 PA_REFERENCE_CLOUDS_DEMO = (0.0, 0.0, -1.0)
 
 
+def conventions() -> dict:
+    """
+    Unit conventions baked into any array this module returns
+    Kept in every product's meta data for provenance
+    """
+    return {"units": "kpc, km/s, Msun, Gyr", "h": H, "gadget_time_to_gyr": GADGET_TIME_TO_GYR}
+
+
 def to_kpc(pos: np.ndarray) -> np.ndarray:
     return np.asarray(pos, dtype=float) / H
 
@@ -54,7 +65,71 @@ def to_gyr(t: np.ndarray | float) -> np.ndarray:
     return np.asarray(t, dtype=float) * GADGET_TIME_TO_GYR / H
 
 
+# map pygadgetreader fields -> (canonical name, converter).
+# Most important: 'age' is pygadgetreader's name for formation TIME
+_FIELDS = {
+    "pos": ("pos_kpc", to_kpc),
+    "vel": ("vel_kms", lambda v: np.asarray(v, dtype=float)),
+    "mass": ("mass_msun", to_msun),
+    "age": ("t_form_gyr", to_gyr),
+}
+
 # velocities don't need a conversion function since they are km/s with no h dependency
+
+
+def load(
+    snap, ptype: str, galaxy: str | None = None, fields=("pos", "vel", "mass")
+) -> dict[str, np.ndarray]:
+    """
+    Loads in one particle type of a B12 snapshot using canonical units
+    Passing galaxy=None keeps both the LMC and SMC (otherwise masked with galaxy_mask())
+    No cuts made other than galaxy
+    Pygadgetreader is imported lazily since it is B12-only
+    """
+    from pygadgetreader import readsnap
+
+    snap = str(snap)
+    pid = readsnap(snap, "pid", ptype)
+    sel = slice(None) if galaxy is None else galaxy_mask(pid, galaxy)
+    out = {"pid": pid[sel]}
+    for f in fields:
+        name, conv = _FIELDS[f]
+        out[name] = conv(readsnap(snap, f, ptype)[sel])
+    return out
+
+
+def snapshot_time_gyr(snap) -> float:
+    from pygadgetreader import readheader
+
+    return float(to_gyr(readheader(str(snap), "time")))
+
+
+def formed_in_run(t_form_gyr: np.ndarray) -> np.ndarray:
+    """
+    Returns False for ft==0 clock-reset stars
+    Do not use these stars for SFH calculations
+    """
+    return np.asarray(t_form_gyr) > 0
+
+
+def galaxy_frame(
+    disk: dict[str, np.ndarray], galaxy: str, *, r_center: float = 10.0, r_axis: float = 10.0
+) -> Frame:
+    """
+    Frame created from the galaxy's initial disk stars (there are not enough young stars to make the frame)
+    Selection done by ID not position to keep consistent LMC/SMC assignment even during collision
+    r_center=10 is needed since default r_init stops early due to the tidal tails (see b12.md, Frames)
+    """
+    m = galaxy_mask(disk["pid"], galaxy)
+    return Frame.from_tracers(
+        disk["pos_kpc"][m],
+        disk["vel_kms"][m],
+        disk["mass_msun"][m],
+        r_center=r_center,
+        r_axis=r_axis,
+        reference=PA_REFERENCE_CLOUDS_DEMO,
+        tracers=f"b12_{galaxy}_disk_stars",
+    )
 
 
 def parent_gas_id(pid: np.ndarray) -> np.ndarray:

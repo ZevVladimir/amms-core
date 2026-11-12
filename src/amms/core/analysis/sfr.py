@@ -19,6 +19,7 @@ from amms.core.analysis.maps import Map2D, project_lonlat, project_map
 __all__ = [
     "SFR_UNIT",
     "SFR_UNIT_SKY",
+    "lookback_edges",
     "sfh",
     "sfr_map_from_gas",
     "sfr_map_from_young_stars",
@@ -27,6 +28,19 @@ __all__ = [
 
 SFR_UNIT = r"$M_{\odot}yr^{-1}kpc^{-2}$"
 SFR_UNIT_SKY = r"$M_{\odot}\rm{yr}^{-1}\rm{deg}^{-2}$"
+
+
+def lookback_edges(t_now: float, dt: float, t_start: float = 0.0) -> np.ndarray:
+    """
+    Creates absolute-time bin edges
+        ends exactly at t_now
+        steps back by dt
+        the partial bin at t_start is dropped (would read as SFR drop)
+    """
+    n = int(
+        np.floor((t_now - t_start) / dt + 1e-9)
+    )  # the 1e-9 means exact multiples keep their first bin
+    return t_now - dt * np.arange(n, -1, -1)
 
 
 def sfr_sky_map_from_young_stars(

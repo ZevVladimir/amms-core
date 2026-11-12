@@ -51,7 +51,7 @@ def _calling_script() -> Path | None:
     return Path(f).resolve() if f else None
 
 
-def _record(source: str, repo: Path | None, extra: dict | None) -> dict[str, Any]:
+def record(source: str, repo: Path | None, extra: dict | None) -> dict[str, Any]:
     script = _calling_script()
     code_dir = repo or (script.parent if script else Path.cwd())
     try:
@@ -98,7 +98,7 @@ def savefig(
     if key is None:
         raise ValueError(f"{path.suffix!r} not supported; use one of {sorted(_METADATA_KEY)}")
 
-    rec = _record(str(source), Path(repo) if repo else None, extra)
+    rec = record(str(source), Path(repo) if repo else None, extra)
     for name in ("code", "amms_core"):
         if rec[name]["dirty"]:
             warnings.warn(f"{name} repo has uncommitted changes; figure records '*'", stacklevel=2)

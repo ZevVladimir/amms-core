@@ -54,8 +54,9 @@ def check(path: Path, margin: float) -> list[CheckResult]:
         results.append(sanity.check_unique_positions("unique_gas", pos[0]))
     # A newly spawned star sits on its parent cell's position. So we would expect to see cross-type duplicates
     results.append(
-        sanity.check_unique_positions("unique_all", np.concatenate(list(pos.values()))),
-        on_duplicate=Status.WARN,
+        sanity.check_unique_positions(
+            "unique_all", np.concatenate(list(pos.values())), on_duplicate=Status.WARN
+        )
     )
 
     return results

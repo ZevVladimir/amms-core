@@ -6,7 +6,16 @@ parse(), and the run counter shared by all ICs within a project.
 
 import pytest
 
-from amms.core.ids import InvalidSimID, SimID, create_run_dir, existing_ids, slugify
+from amms.core.ids import (
+    ExtID,
+    InvalidDatasetID,
+    InvalidSimID,
+    SimID,
+    create_run_dir,
+    existing_ids,
+    parse_dataset_id,
+    slugify,
+)
 
 
 @pytest.mark.parametrize(
@@ -94,3 +103,35 @@ def test_existing_ids_ignores_junk(tmp_path):
     (tmp_path / "scratch-notes").mkdir()
     (tmp_path / "smc_001_edw1_ok.tar").touch()
     assert [str(s) for s in existing_ids(tmp_path)] == ["smc_001_edw1_ok"]
+
+
+# --- dataset IDs: SIM_ID or ext_<slug> ---
+
+
+def test_ext_id_roundtrip():
+    e = ExtID.parse("ext_b12-model2")
+    assert (e.slug, str(e)) == ("b12-model2", "ext_b12-model2")
+
+
+@pytest.mark.parametrize("text", ["ext_B12", "ext_b12_model2", "ext_", "ext_b12-", "b12_model2"])
+def test_ext_id_rejects(text):
+    with pytest.raises(InvalidDatasetID):
+        ExtID.parse(text)
+
+
+def test_parse_dataset_id_routes_both_kinds():
+    assert isinstance(parse_dataset_id("ext_b12-model2"), ExtID)
+    assert isinstance(parse_dataset_id("smc_001_edw1_sh03"), SimID)
+
+
+def test_ext_is_reserved_as_project_name():
+    # Would be a valid SIM_ID by grammar alone; the ext_ prefix must win and reject it
+    assert SimID.is_valid("ext_001_edw1_x")
+    with pytest.raises(InvalidDatasetID):
+        parse_dataset_id("ext_001_edw1_x")
+
+
+def test_old_b12_spelling_is_not_a_dataset_id():
+    # The pre-2026-11-06 directory name: neither a SIM_ID nor ext_
+    with pytest.raises(ValueError):
+        parse_dataset_id("b12_model2")

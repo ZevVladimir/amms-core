@@ -29,9 +29,15 @@ SIM_ID_RE = re.compile(
     r"_(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
 )
 
+EXT_ID_RE = re.compile(r"^ext_(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$")
+
 
 class InvalidSimID(ValueError):
     """Raised when a string is not a valid simulation identifier."""
+
+
+class InvalidDatasetID(ValueError):
+    """Raised when a string is neither a SIM_ID nor an ext_<slug> dataset name"""
 
 
 @dataclass(frozen=True, order=True)
@@ -83,6 +89,45 @@ class SimID:
     def with_slug(self, slug: str) -> SimID:
         """Returns a new SimID with the same project and number and IC but a new description slug"""
         return SimID(self.project, self.number, self.ic, slugify(slug))
+
+
+@dataclass(frozen=True, order=True)
+class ExtID:
+    """
+    External comparison dataset (e.g. B12 sims): ext_<slug>
+    The prefix is what identifies the corresponding data to be excluded when releases are done
+    """
+
+    slug: str
+
+    def __post_init__(self) -> None:
+        if not EXT_ID_RE.match(str(self)):
+            raise InvalidDatasetID(f"{str(self)!r} is not a valid ext_<slug>")
+
+    def __str__(self) -> str:
+        return f"ext_{self.slug}"
+
+    @classmethod
+    def parse(cls, text: str) -> ExtID:
+        m = EXT_ID_RE.match(text)
+        if not m:
+            raise InvalidDatasetID(
+                f"{text!r} is not ext_<slug> (lowercase, hyphens inside the slug)"
+            )
+        return cls(m["slug"])
+
+
+DatasetID = SimID | ExtID
+
+
+def parse_dataset_id(text: str) -> DatasetID:
+    """
+    'ext_' routes to ExtID so 'ext' can never be a project name. e.g. ext_001_edw1_x is rejected rather
+    than being accepted as a SimID
+    """
+    if text.startswith("ext_"):
+        return ExtID.parse(text)
+    return SimID.parse(text)
 
 
 def slugify(text: str) -> str:
