@@ -90,7 +90,10 @@ Pin: all LMC stars, 100 Myr last bin ≈ 0.0488. **Target figure:** LMC–SMC di
 **Next, in order:**
 1. `GADGET_TIME_TO_GYR` → 0.9778 decided 2026-11-11 (see b12.md); transcribe + re-pin.
    Distance panel needs snapshot centres (`LS_MW/*.txt` is the IC orbit, see b12.md).
-   `b12_lmc_newstars.py` / `B12_SF_review.ipynb` never existed on Puma — new code.
+   Done 2026-11-12: `lmcsmcmw/scripts/b12_newstars.py` → `newstars_{lmc,smc}-069` for
+   Model 2; notebook `b12_SF_review.ipynb`. Fid1 = Model 1, present day 069. Fig. 16 is
+   10× ours, pipeline verified (b12.md) — user asks advisor. User's plot order: LMC SFH
+   M2 5 kpc → LMC–SMC distance M2 → + galactocentric r → SMC SFR map M2 → SMC SFH M2 2 kpc.
 2. `products.py` review fixes (proposed 2026-11-10): numpy-aware JSON `default` (current
    `default=str` turns `np.int64` into `"69"`, silent); dirty-repo warning like `savefig`.
 3. `Map2D.save/load` → delegate to products (kind `sfrmap`); repoint

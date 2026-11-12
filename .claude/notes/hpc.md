@@ -37,7 +37,9 @@ Read before proposing shell commands for Puma, venv/kernel changes, or env debug
   `pip install git+https://github.com/jveitchmichaelis/pygadgetreader.git`
   (pyGadgetReader 2.6, pulls h5py). **No `--no-build-isolation`** (py3.12+ venvs lack
   setuptools → `BackendUnavailable`). numpy 2.x fine. Freeze at `freeze.txt`.
-  amms-core installed with `pip install -e <repo> --no-deps`.
+  amms-core installed with `pip install -e <repo> --no-deps`; `pydantic` added
+  2026-11-12 (products need it). pip's "amms-core requires pandas/pyarrow" warning is
+  harmless: nothing in `src/` imports either.
 - `~/.venvs/arepo-tests` for AREPO's `test.py`.
 
 ## Traps that already cost time
