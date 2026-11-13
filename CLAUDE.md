@@ -125,7 +125,10 @@ writes one md, laptop rsyncs into the vault (vault path still needed). No scront
 read-only format parsing (`codes/makegalaxy.py`). Generator modules expose
 `component_budget(params) -> list[ExpectedComponent]`. IC sanity products live with the
 IC: `<ics_root>/<ic_name>/sanity/`, symlinked from `$AMMS_PRODUCTS/ics/<ic_name>`;
-results carry the IC sha256.
+results carry the IC sha256. IC figures → `sanity/<ic_stem>/figures/` (user, 2026-11-13;
+filenames not yet approved). Wanted: profiles vs analytic, v_c vs `.vc`, Toomre Q +
+vertical, maps + Z/age. Result plots after: SFH sfrtxt, maps over time, v_c evolution,
+scale height/Q evolution — share code paths with the IC plots.
 
 ## Citing upstream source
 

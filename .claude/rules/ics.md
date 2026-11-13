@@ -82,6 +82,16 @@ broken file. `.parameters` is `%g` (6 sig. digits, ~5e-6 rel) → `MASS_RTOL = 1
 - smc_test `FactorForSofterEQS=1`: vertical structure solved with SH03 eff. EOS
   (`makegalaxy:effmodel.c:166`) but `u` written flat 1e4 K and SMUGGLE has no eff. EOS →
   expect vertical collapse at t=0. Dwarf used 0, consistent. `U4MOD` off.
+- **`.vc` file** (`makegalaxy:main.c:129-149`): written to the **cwd**, not OutputDir
+  (OutputDir join commented out), as `<OutputFile minus .hdf5>.vc`. Layout: param header
+  ending `done` (`main.c:217`); `POINTS`=1000; R grid (R200/1000 · i); then **v_c² (not
+  v_c)** for total, disk, halo, bulge (`makegalaxy:toomre.c:97+`); then Toomre count + R
+  (≤ 6H) + Q stars + Q gas (`toomre.c:42`, GB gas-modified; Makefile builds `toomre.o`,
+  not `toomre_orig`). Laptop has only the example `ics_mw.vc`. Puma: `smct1` →
+  `/groups/gbesla/zvladimir/ics/smc_test/ics_smc.vc`. edw1 candidate is a file named
+  just `.vc` in `/groups/.../make_ics_from_ethan/MakeGalaxy/` — the garbled OutputFile
+  fails `strstr(".hdf5")`, so buf stays empty; **unverified that it is the dwarf's**
+  (header-vs-`.parameters` diff pending; any later run from that cwd overwrites it).
 - smc_test `Zmet0=0.032` is the MW template (~2x solar), not SMC.
 - Open regeneration decisions: Zmet0, FactorForSofterEQS, halo truncation, V200's
   assumed h (ask Ethan for his dwarf too).
