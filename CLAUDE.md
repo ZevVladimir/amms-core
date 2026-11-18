@@ -66,7 +66,7 @@ Resume a frozen item only when its lift criterion is met, not because Build Orde
 ## Current state and next steps (updated 2026-11-10) — prune as items land
 
 Puma layout: repos `~/{amms-core,smc,lmcsmcmw}`, upstream codes `~/codes/{arepo-smuggle,
-arepo-grid}`, runs `~/sims -> /xdisk/gbesla/zvladimir/sims`, ICs + `ic_tags.yaml` in
+arepo-grid,makegalaxy}`, runs `~/sims -> /xdisk/gbesla/zvladimir/sims`, ICs + `ic_tags.yaml` in
 `/groups/gbesla/zvladimir/ics`. Tags: `edw1`, `smct1`. Run #1 `smc_001_edw1_sh03` done
 (1 Gyr, no restart). `lmcsmcmw` IS the `mwlmcsmc` project repo.
 
@@ -109,8 +109,8 @@ Pin: all LMC stars, 100 Myr last bin ≈ 0.0488. **Target figure:** LMC–SMC di
    3-panel figure (mass/type, min dt, Ekin+Eint/type vs t) →
    `$AMMS_PRODUCTS/<sim_id>/figures/run_health.png` (user-approved 2026-11-17).
 7. Snapshot maps over time, rotation curve, scale-height evolution (reading in drivers).
-8. IC diagnostic plots (profiles vs analytic, rotation curve vs `.vc` — needs
-   `makegalaxy.read_vc`, read source layout first — Toomre Q, Z/age) on edw1, smct1.
+8. Done 2026-11-18: `amms ic-plots` on edw1 + smct1 (results in ics.md); tests for
+   `read_vc` + `profiles.py` written.
 9. smc_test regeneration decisions (see `.claude/rules/ics.md`).
 10. Archive policy for finished runs (only copy is on /xdisk).
 11. Migrate `lmcsmcmw/scripts/plot_*.py` to `provenance.savefig`.
@@ -144,7 +144,7 @@ AREPOs share most filenames). Line numbers are against these commits:
 |---|---|---|---|
 | `arepo-smuggle` | `~/codes/arepo-smuggle` (laptop read-only + Puma) | `Arepo2-smuggle-mod` d323be6; Puma `puma-buildsystem` changes only `buildsystem/` | C++ |
 | `arepo-grid` | Puma `~/codes/arepo-grid`; laptop `~/smc/ics/make_ics_from_ethan/arepo_grid` (unpatched) | `master` f18a5b80a3 (+ gas-only shift patch on Puma, same lines) | C |
-| `makegalaxy` | `/groups/.../ics/make_ics_from_ethan/MakeGalaxy`; laptop `~/smc/ics/make_ics_from_ethan/MakeGalaxy` | no git; source of `MakeGalaxy_new`, **not** of `MakeGalaxy_puma9_modified_bulge` | C |
+| `makegalaxy` | Puma `~/codes/makegalaxy` (builds `MakeGalaxy_new`: `module load gnu13/13.2.0 gsl hdf5`); laptop `~/smc/ics/make_ics_from_ethan/MakeGalaxy` (no git, same source) | b7d6ddb (2026-11-18 import, source sha256 `9b1535d8…`, unchanged → old line numbers valid); source of `MakeGalaxy_new`, **not** of `MakeGalaxy_puma9_modified_bulge` | C |
 
 ## Settled — argue only with new evidence, and name the decision if you do
 

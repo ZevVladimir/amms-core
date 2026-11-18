@@ -89,7 +89,10 @@ broken file. `.parameters` is `%g` (6 sig. digits, ~5e-6 rel) → `MASS_RTOL = 1
   (≤ 6H) + Q stars + Q gas (`toomre.c:42`, GB gas-modified; Makefile builds `toomre.o`,
   not `toomre_orig`). Laptop has only the example `ics_mw.vc`. Puma: `smct1` →
   `/groups/gbesla/zvladimir/ics/smc_test/ics_smc.vc`. edw1 candidate is a file named
-  just `.vc` in `/groups/.../make_ics_from_ethan/MakeGalaxy/` — the garbled OutputFile
+  just `.vc` in the old MakeGalaxy run dir (now
+  `/groups/gbesla/zvladimir/ics/ethan_dwarf_1e6/ics_dwarf_live_1e6.vc`, copied 2026-11-18
+  with the tables, `MakeGalaxy_new`, input and job log; old dir renamed
+  `make_ics_from_ethan/MakeGalaxy.TO_DELETE`) — the garbled OutputFile
   fails `strstr(".hdf5")`, so buf stays empty. **Verified 2026-11-17:** header identical
   to `output_dwarf/ics_dwarf_live_1e6.hdf5.parameters` (diff = only the `done` line the
   check stripped); mtime 2026-09-11 08:09:30.63, same second as the garbled-name
@@ -104,8 +107,21 @@ broken file. `.parameters` is `%g` (6 sig. digits, ~5e-6 rel) → `MASS_RTOL = 1
   `Rd` = H. No `PowerLawGamma` in header → GasD=2 gas profile not reconstructible.
 - **smct1 `.vc` (Himansh's MakeGalaxy_puma9) adds marker lines** `starting list R`,
   `ending list R`, `starting Q`, `ending Q`, `starting Qg`, `ending Qg` (lines 5041-6221,
-  391 Toomre points, 6221 lines; `done` at 36). `read_vc` must drop lines starting
-  `starting`/`ending`; whether a count line precedes `starting list R` is unverified.
+  6221 lines; `done` at 36). `read_vc` must drop lines starting
+  `starting`/`ending`. Count line `390` precedes `starting list R` (verified 2026-11-18);
+  `ic-plots` parsed it.
+- **ic-plots first results (2026-11-18).** edw1: Σ, ρ, sech² median |z| and stellar Q all
+  match the `.vc` model → `profiles.py` + frame validated. smct1: measured stellar Q is
+  **~1.9× below** `.vc` Q_stars at every R (min ~3 vs ~6); its disk-tree v_max 26.3 km/s
+  matches Freeman with stars+gas (28.0), not stars only (19.8) → puma9's tree includes
+  gas, unlike `makegalaxy:force.c:452`. Source missing → can't say which Q it computed;
+  trust the measured Q (it is what AREPO sees). smct1 f = 0.5, GasD 0 → gas Σ = stellar Σ.
+- edw1 registered path is `/groups/gbesla/zvladimir/ics/ethan_dwarf_1e6/`, **not**
+  `MakeGalaxy/output_dwarf/`; run #1 `InitCondFile` is run-dir relative. Moving the
+  MakeGalaxy dir breaks no registered path. **Name collision:**
+  `MakeGalaxy/output_dwarf/ics_dwarf_live_1e6-with-grid.hdf5` is the broken double-shifted
+  `3909e986…`, same filename as edw1 — never copy it into `ethan_dwarf_1e6/`. Stage-1 in
+  `output_dwarf/` is `617facab…`.
 - **.vc Q_gas is not the IC's Q:** `toomre.c:73` uses c_s² = γ·U4·(ρ/ρ_th)^-½ (SH03 eff.
   EOS); IC gas is u = U4 flat (`gasset.c:87`), c_s² = γ(γ-1)u. Q_* (`toomre.c:65`) uses
   stellar-only M_DISK (`structure.c:89`) — comparable.

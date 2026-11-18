@@ -65,3 +65,63 @@ def test_read_input_mirrors_c_parser(tmp_path):
     p = tmp_path / "in.txt"
     p.write_text("V200   40.91 #45.0  % comment\n%LAMBDA 0.038\nCC 15.0\n\nlonetoken\n")
     assert read_input(p) == {"V200": "40.91", "CC": "15.0"}
+
+
+# --- read_vc ---------------------------------------------------------------------------
+# Fixtures are written with the generator's own printf formats (makegalaxy:main.c:138-142 →
+# write_header, plot_circular_speeds %f at makegalaxy:toomre.c:106-136, plot_toomre_stability
+# "\n%d\n" + %g at makegalaxy:toomre.c:75-85), so the parser is pinned to what the C writes.
+
+from amms.core.codes.makegalaxy import read_vc  # noqa: E402
+
+R = [0.04, 0.08, 0.12]
+CURVES = [[10.5, 20.25, 30.125], [1.0, 2.0, 3.0], [9.0, 18.0, 27.0], [0.5, 0.25, 0.125]]
+Q_R, Q_S, Q_G = [0.0, 0.0001], [523.818, 12.5], [1e3, 6.5]
+
+
+def _vc_text(*, markers=False, drop_last=False):
+    out = (DATA / "dwarf.parameters").read_text()  # ends in "done\n", as write_header does
+    out += f"{len(R)}\n" + "".join(f"{v:f}\n" for v in R)
+    for c in CURVES:
+        out += "".join(f"{v:f}\n" for v in c)
+    qg = Q_G[:-1] if drop_last else Q_G
+    blocks = [("list R", Q_R), ("Q", Q_S), ("Qg", qg)]
+    out += f"\n{len(Q_R)}\n"
+    for name, vals in blocks:
+        body = "".join(f"{v:g}\n" for v in vals)
+        # Himansh's MakeGalaxy_puma9 (smct1) layout, observed in ics_smc.vc lines 5036-5045, 5430-5437
+        out += f"\nstarting {name}\n{body}\nending {name}\n" if markers else body
+    return out
+
+
+@pytest.mark.parametrize("markers", [False, True], ids=["makegalaxy", "puma9-markers"])
+def test_read_vc_fields(tmp_path, markers):
+    p = tmp_path / "x.vc"
+    p.write_text(_vc_text(markers=markers))
+    vc = read_vc(p)
+    assert vc.params == read_parameters(DATA / "dwarf.parameters")  # header == .parameters
+    assert vc.r.tolist() == R
+    # Order is total, disk (tree), halo, bulge -- and these are v_c^2, not v_c
+    assert [
+        vc.vc2_total.tolist(),
+        vc.vc2_disk.tolist(),
+        vc.vc2_halo.tolist(),
+        vc.vc2_bulge.tolist(),
+    ] == CURVES
+    assert vc.q_r.tolist() == Q_R
+    assert vc.q_stars.tolist() == Q_S
+    assert vc.q_gas.tolist() == Q_G
+
+
+def test_read_vc_truncated_toomre_block_raises(tmp_path):
+    p = tmp_path / "x.vc"
+    p.write_text(_vc_text(drop_last=True))
+    with pytest.raises(ValueError, match="Toomre block"):
+        read_vc(p)
+
+
+def test_read_vc_without_done_raises(tmp_path):
+    p = tmp_path / "x.vc"
+    p.write_text(_vc_text().replace("done\n", ""))
+    with pytest.raises(ValueError, match="done"):
+        read_vc(p)

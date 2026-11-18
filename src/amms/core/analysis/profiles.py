@@ -47,6 +47,8 @@ def cylindrical(pos, vel):
     """
     Returns (R, v_R, v_phi) for a frame with the disk in x-y plane
     R=0 returns NaN velocities
+    v_R = v · hat{R} = (x v_x + y v_y) / R
+    v_phi = v · hat{phi} = (x v_y - y v_x) / R
     """
     x, y = pos[:, 0], pos[:, 1]
     R = np.hypot(x, y)
@@ -118,4 +120,9 @@ def hernquist_density(r, mass, a):
 
 
 def exponential_surface_density(R, mass, h):
+    """
+    makegalaxy:disk.c:288
+    Rd from Mo, Mao, & White 1998
+    IC construction Springel, Di Matteo, & Hernquist (2005)
+    """
     return mass / (2 * np.pi * h**2) * np.exp(-R / h)
