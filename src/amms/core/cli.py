@@ -16,6 +16,7 @@ COMMANDS = {
     "ic-sanity": "ic_sanity",
     "plot-sfh": "plot_sfh",
     "run-summary": "run_summary",
+    "ic-plots": "ic_plots",
 }
 
 
