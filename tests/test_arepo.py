@@ -7,6 +7,10 @@ checks the parser against what AREPO emits, not against my reading of it:
     cpu.txt          arepo-smuggle:src/logs/logs.cc:919-926
     -usedvalues      arepo-smuggle:src/io/parameters.cc:124-145 (MAXLEN_PARAM_TAG 50, reals as %g)
     arepoconfig.h    arepo-smuggle:buildsystem/prepare-config.py:55-62,95
+    energy.txt       arepo-smuggle:src/logs/global.cc:91
+    timebins.txt     arepo-smuggle:src/logs/logs.cc:549,631,679
+    memory.txt       arepo-smuggle:src/data/mymalloc.cc:356 (+ decoy memorymanager.cc:151)
+Values in the energy/timebins/memory fixtures are smc_001_edw1_sh03's own log lines.
 """
 
 import numpy as np
@@ -195,3 +199,256 @@ def test_cpu_without_step_block_raises(tmp_path):
     path.write_text("not a cpu log\n")
     with pytest.raises(ValueError, match="no 'Step' block"):
         arepo.read_cpu(path)
+
+
+# energy.txt: one fprintf of 30 %g (arepo-smuggle:src/logs/global.cc:91)
+# Rows are smc_001_edw1_sh03's first and last line: time, Eint/Epot/Ekin totals,
+# (int, pot, kin) x 6 types, mass x 6 types, EgyInjection, EnergyMag
+ENERGY_T0 = [
+    0,
+    28.9341,
+    0,
+    3503.33,
+    28.9341,
+    0,
+    141.356,
+    0,
+    0,
+    3332.14,
+    0,
+    0,
+    28.3882,
+    0,
+    0,
+    1.44061,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.0604452,
+    1.52038,
+    0.0111935,
+    0.000796009,
+    0,
+    0,
+    0,
+    0,
+]
+ENERGY_TEND = [
+    1.0227,
+    32.3744,
+    0,
+    3445.64,
+    32.3744,
+    0,
+    122.438,
+    0,
+    0,
+    3258.9,
+    0,
+    0,
+    27.0967,
+    0,
+    0,
+    1.3163,
+    0,
+    0,
+    35.8875,
+    0,
+    0,
+    0,
+    0.0478371,
+    1.52038,
+    0.0111935,
+    0.000796009,
+    0.0126081,
+    0,
+    0,
+    0,
+]
+
+
+def energy_line(row):
+    return " ".join(f"{v:g}" for v in row) + "\n"
+
+
+def test_energy_columns_land_per_type(tmp_path):
+    path = tmp_path / "energy.txt"
+    path.write_text(energy_line(ENERGY_T0) + energy_line(ENERGY_TEND))
+    e = arepo.read_energy(path)
+    np.testing.assert_array_equal(e.time, [0, 1.0227])
+    # mass block is cols 22-27, indexed by PartType: gas, halo, disk, bulge, new stars, bndry
+    np.testing.assert_array_equal(e.mass[0], [0.0604452, 1.52038, 0.0111935, 0.000796009, 0, 0])
+    assert e.mass[1, 4] == 0.0126081
+    # (int, pot, kin) triplets: gas has Eint, halo has only Ekin, new stars gain Ekin
+    assert e.e_int[0, 0] == 28.9341
+    assert e.e_kin[0, 1] == 3332.14
+    assert e.e_kin[1, 4] == 35.8875
+    assert e.e_int[0, 1] == 0
+    # run #1 had no EVALPOTENTIAL: every Epot column is 0
+    assert not e.has_potential
+    assert e.rows_dropped == 0
+
+
+def test_energy_restart_overlap_dropped(tmp_path):
+    mid = list(ENERGY_T0)
+    mid[0] = 0.5
+    late = list(ENERGY_T0)
+    late[0] = 0.7
+    path = tmp_path / "energy.txt"
+    # first pass reaches 0.7, restart from 0.5 re-logs 0.5 then continues to 1.0227
+    path.write_text("".join(energy_line(r) for r in [ENERGY_T0, mid, late, mid, ENERGY_TEND]))
+    e = arepo.read_energy(path)
+    np.testing.assert_array_equal(e.time, [0, 0.5, 1.0227])
+    assert e.rows_dropped == 2
+
+
+def test_energy_potential_detected_when_logged(tmp_path):
+    row = list(ENERGY_T0)
+    row[5] = -12.5  # gas Epot
+    path = tmp_path / "energy.txt"
+    path.write_text(energy_line(row))
+    assert arepo.read_energy(path).has_potential
+
+
+def test_energy_wrong_column_count_raises(tmp_path):
+    path = tmp_path / "energy.txt"
+    path.write_text(energy_line(ENERGY_T0[:28]))
+    with pytest.raises(ValueError, match="expected 30"):
+        arepo.read_energy(path)
+
+
+# memory.txt (arepo-smuggle:src/data/mymalloc.cc:356); SHARED MEMORY variant from
+# arepo-smuggle:src/data/memorymanager.cc:151 shares the wording and must not match
+MEM_FMT = (
+    "\nMEMORY:  Largest Allocation = %g Mbyte  |  Largest Allocation Without Generic = %g Mbyte\n\n"
+)
+SHARED_FMT = "\nSHARED MEMORY:  Largest Allocation = %g Mbyte  |  Largest Allocation Without Generic = %g Mbyte\n\n"
+
+
+def test_memory_peak_is_max_not_last_and_ignores_shared(tmp_path):
+    path = tmp_path / "memory.txt"
+    path.write_text(
+        MEM_FMT % (4495.58, 585.595)
+        + SHARED_FMT % (9999, 9999)
+        # high-water resets on restart, so a later block can be smaller than the true peak
+        + MEM_FMT % (1465.62, 175.439)
+    )
+    m = arepo.read_memory_peak(path)
+    assert (m.total_mb, m.without_generic_mb) == (4495.58, 585.595)
+
+
+def test_memory_without_blocks_raises(tmp_path):
+    path = tmp_path / "memory.txt"
+    path.write_text(SHARED_FMT % (1.0, 1.0))
+    with pytest.raises(ValueError, match="no 'MEMORY:' line"):
+        arepo.read_memory_peak(path)
+
+
+# timebins.txt: block header logs.cc:549, column header logs.cc:631, bin line logs.cc:679.
+# Optional columns (smuggle/tracer/dust) are "" or "%10llu  " per Config flag (logs.cc:648-672)
+TB_HEAD = "\nSync-Point %d, Time: %.10g, Systemstep: %g\n"
+TB_COLS = (
+    "Occupied timebins: gravity       hydro     %s     %s     %s  dt            "
+    "cumul-grav   cumul-sph A D    avg-time  cpu-frac\n"
+)
+TB_BIN = (
+    " %s  bin=%2d      %10d  %10d  %s  %s %s   %16.12f       %10d  %10d %s %s  %10.2f    %5.1f%%\n"
+)
+TB_TOTAL = "               ------------------------\nTotal active:   %10d  %10d  %s  %s  %s\n\n"
+
+
+def tb_block(step, time, systemstep, bins, smuggle=False):
+    """bins: (synced, bin, n_grav, n_hydro, dt), highest bin first as AREPO prints them"""
+    opt = "smuggle     " if smuggle else ""
+    out = TB_HEAD % (step, time, systemstep) + TB_COLS % (opt, "", "")
+    for synced, b, ng, nh, dt in bins:
+        count = f"{7:10d}  " if smuggle else ""
+        out += TB_BIN % (
+            "X" if synced else " ",
+            b,
+            ng,
+            nh,
+            count,
+            "",
+            "",
+            dt,
+            ng,
+            nh,
+            " ",
+            " ",
+            0.0,
+            0.0,
+        )
+    return out + TB_TOTAL % (0, 0, "", "", "")
+
+
+# smc_001_edw1_sh03 Sync-Points 0, 1, 28727 (trimmed to the bins that matter)
+TB_RUN1 = [
+    (0, 0, 0, [(True, 0, 32594442, 2374442, 0.0)]),
+    (
+        1,
+        3.901290894e-06,
+        3.90129e-06,
+        [
+            (False, 20, 11388642, 108873, 0.001997460937),
+            (False, 12, 65, 65, 0.000007802582),
+            (True, 11, 5, 5, 0.000003901291),
+        ],
+    ),
+    (
+        28727,
+        1.0227,
+        3.12103e-05,
+        [
+            (True, 20, 11335477, 74802, 0.001997460937),
+            (True, 15, 25765, 25764, 0.000062420654),
+            (True, 14, 4, 4, 0.000031210327),
+        ],
+    ),
+]
+
+
+def test_timebins_smallest_occupied_bin_per_sync_point(tmp_path):
+    path = tmp_path / "timebins.txt"
+    path.write_text("".join(tb_block(*b) for b in TB_RUN1))
+    t = arepo.read_timebins(path)
+    np.testing.assert_array_equal(t.time, [0, 3.901290894e-06, 1.0227])
+    np.testing.assert_array_equal(t.min_bin, [0, 11, 14])
+    np.testing.assert_array_equal(t.min_dt, [0.0, 0.000003901291, 0.000031210327])
+    np.testing.assert_array_equal(t.n_grav, [32594442, 5, 4])
+    np.testing.assert_array_equal(t.n_hydro, [2374442, 5, 4])
+    assert t.rows_dropped == 0
+
+
+def test_timebins_min_found_regardless_of_print_order(tmp_path):
+    # the parser takes the min, it doesn't trust 'last line = lowest bin'
+    path = tmp_path / "timebins.txt"
+    path.write_text(tb_block(5, 0.1, 1e-5, [(True, 11, 5, 5, 3.9e-6), (False, 20, 9, 9, 2e-3)]))
+    assert arepo.read_timebins(path).min_bin.tolist() == [11]
+
+
+def test_timebins_smuggle_column_shifts_dt(tmp_path):
+    # SMUGGLE_STAR_FEEDBACK_LIMIT_GAS_TIMESTEP adds a count column before dt; a fixed index
+    # would read that integer count (7) as dt
+    path = tmp_path / "timebins.txt"
+    path.write_text(tb_block(*TB_RUN1[1], smuggle=True))
+    t = arepo.read_timebins(path)
+    assert t.min_dt.tolist() == [0.000003901291]
+    assert (t.n_grav[0], t.n_hydro[0]) == (5, 5)
+
+
+def test_timebins_restart_overlap_dropped(tmp_path):
+    one = [(True, 14, 4, 4, 3.1e-5)]
+    path = tmp_path / "timebins.txt"
+    path.write_text(
+        "".join(
+            tb_block(s, t, 1e-5, one)
+            for s, t in [(1, 0.1), (2, 0.2), (3, 0.3), (2, 0.2), (3, 0.35)]
+        )
+    )
+    t = arepo.read_timebins(path)
+    np.testing.assert_array_equal(t.time, [0.1, 0.2, 0.35])
+    assert t.rows_dropped == 2

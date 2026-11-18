@@ -79,10 +79,13 @@ paths:
 - **hostmemory.txt**: only Sync-Point 0 in run #1 (1 block, 94 ranks + prterun/slurm
   rows) → no high-water information; not parsed.
 - Run #1 disk: 11 snapshots (100 Myr cadence), ~0.97 GB each (~10.6 GB);
-  `restartfiles/` 19 GB (fixed, not per-snapshot); logs 212 MB (cpu.txt 122 MB);
+  `restartfiles/` 19 GB = 188 files = `restart.N` + `bak-restart.N` for 94 tasks (one
+  set ≈ 9.5 GB ≈ 10× a snapshot; fixed, not per-snapshot); logs 212 MB (cpu.txt 122 MB);
   `output/` 30 GB. `du -sh A A/sub` prints one line (du skips already-counted dirs).
-- `legacy-gadget` venv: no `h5ls`; bare `python` fails (`libpython3.14.so`) unless
-  `module load python/3.14/3.14.2` first.
+- Python on Puma: a venv only works under its own interpreter's module. `amms` = 3.11.4
+  (`source env/activate.sh`), `legacy-gadget` = 3.14.2. Loading the other module swaps
+  it out (`libpython3.x.so` not found). **Propose commands for whichever venv the user's
+  prompt shows; never a bare `module load python/...`.** No `h5ls` in either.
 
 ## First run: `smc_001_edw1_sh03`
 
@@ -98,5 +101,10 @@ on `edw1`.
 - End: SFR 0.095 Msun/yr (settled ~0.16 early), 1.26e8 Msun formed (21% of initial
   gas), 536,131 star particles within 5.2 kpc, gas cells 2.37M → 2.68M (early) → 1.94M,
   no runaways.
-- **Pending check:** does PartType4 have `StellarFormationTime` without `STELLARAGE`?
-  If not, add STELLARAGE to every future Config.sh.
+- **No stellar ages in run #1 (confirmed 2026-11-17):** PartType4 = Coordinates, Masses,
+  ParticleIDs, Velocities only. Birth time is not even stored in memory without
+  `STELLARAGE` (`arepo-smuggle:src/cooling_sfr/starformation.cc:721-723`,
+  `arepo-smuggle:src/data/allvars.h:3031`) → unrecoverable. Run #1 SFH: global from
+  sfr.txt; spatial only by new-ID first appearance (birth bracketed to the 100 Myr snapshot
+  cadence). **Add `STELLARAGE` to every future Config.sh** (consider `EVALPOTENTIAL` too:
+  energy check + potential centring).

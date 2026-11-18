@@ -90,8 +90,12 @@ broken file. `.parameters` is `%g` (6 sig. digits, ~5e-6 rel) → `MASS_RTOL = 1
   not `toomre_orig`). Laptop has only the example `ics_mw.vc`. Puma: `smct1` →
   `/groups/gbesla/zvladimir/ics/smc_test/ics_smc.vc`. edw1 candidate is a file named
   just `.vc` in `/groups/.../make_ics_from_ethan/MakeGalaxy/` — the garbled OutputFile
-  fails `strstr(".hdf5")`, so buf stays empty; **unverified that it is the dwarf's**
-  (header-vs-`.parameters` diff pending; any later run from that cwd overwrites it).
+  fails `strstr(".hdf5")`, so buf stays empty. **Verified 2026-11-17:** header identical
+  to `output_dwarf/ics_dwarf_live_1e6.hdf5.parameters` (diff = only the `done` line the
+  check stripped); mtime 2026-09-11 08:09:30.63, same second as the garbled-name
+  `.parameters` → written by that run. Proper-name rerun at 15:11 left no `.vc` under
+  `/groups/gbesla/zvladimir/ics` (ran from another cwd?). Use `.vc` for edw1; it models
+  the stage-1 IC (pre-grid).
 - smc_test `Zmet0=0.032` is the MW template (~2x solar), not SMC.
 - Open regeneration decisions: Zmet0, FactorForSofterEQS, halo truncation, V200's
   assumed h (ask Ethan for his dwarf too).

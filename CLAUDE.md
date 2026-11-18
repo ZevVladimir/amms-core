@@ -110,7 +110,7 @@ Pin: all LMC stars, 100 Myr last bin ≈ 0.0488. **Target figure:** LMC–SMC di
 10. Archive policy for finished runs (only copy is on /xdisk).
 11. Migrate `lmcsmcmw/scripts/plot_*.py` to `provenance.savefig`.
 12. Hand-written `metadata.yaml` for run #1 (`status: done`, fill `<...>` fields).
-13. Puma checks asked 2026-11-10: PartType4 `StellarFormationTime` without STELLARAGE;
+13. Puma checks asked 2026-11-10 (PartType4 ages: answered, none — see arepo-output.md):
     rental snapshot_069 sha256 vs xdisk copy (which dir is Model 2); `LS_MW/*.txt` heads;
     `/xdisk` expiry.
 

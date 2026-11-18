@@ -17,11 +17,20 @@ import numpy as np
 __all__ = [
     "CpuBlock",
     "CpuTimer",
+    "DiskUsage",
+    "EnergyLog",
+    "MemoryPeak",
     "SfrLog",
+    "TimebinLog",
     "Units",
+    "disk_usage",
+    "expected_snapshots",
     "read_config",
     "read_cpu",
+    "read_energy",
+    "read_memory_peak",
     "read_sfr",
+    "read_timebins",
     "read_usedvalues",
 ]
 
@@ -231,7 +240,7 @@ def read_energy(path: str | os.PathLike) -> EnergyLog:
 
 @dataclass(frozen=True)
 class MemoryPeak:
-    total_mb: float  # inclues generic comm buffers: ~MaxMemSize by construction so not useful as a basis to judge memory usage
+    total_mb: float  # includes generic comm buffers: ~MaxMemSize by construction so not useful as a basis to judge memory usage
     without_generic_mb: float  # real per-task requirement
 
 
@@ -273,20 +282,77 @@ _SYNC = re.compile(r"^Sync-Point \d+, Time: ([^,\s]+),")
 _BIN = re.compile(r"^ [X ]  bin=\s*(\d+)\s+(.*)$")
 
 
-# def read_timebins(path: str | os.PathLike) -> TimebinLog:
-#     """
-#     Block header from arepo-smuggle:src/logs/logs.cc:549
-#     bin lines from logs.cc:679
-#     Only occupied bins are pritned
-#     Bin 0 (from step 0 only) has dt=0
-#     """
-#     rows, cur, idt = [], None, None
-#     with open(path) as f:
-#         for line in f:
-#             if m := _SYNC.match(line):
-#                 if cur is not None:
-#                     rows.append(cur)
-#                 cur = [float(m[1]), np.inf, np.nan, 0, 0]
-#             elif line.startswith("Occupied timebins:"):
-#                 # names after 'Occupied timebins:'; bin lines have the same order after 'bin=NN'
-#                 idt = line.split()[2:].index("dt")
+def read_timebins(path: str | os.PathLike) -> TimebinLog:
+    """
+    Block header from arepo-smuggle:src/logs/logs.cc:549
+    bin lines from logs.cc:679
+    Only occupied bins are printed
+    Bin 0 (from step 0 only) has dt=0
+    """
+    rows, cur, idt = [], None, None
+    with open(path) as f:
+        for line in f:
+            if m := _SYNC.match(line):
+                if cur is not None:
+                    rows.append(cur)
+                cur = [float(m[1]), np.inf, np.nan, 0, 0]
+            elif line.startswith("Occupied timebins:"):
+                # names after 'Occupied timebins:'; bin lines have the same order after 'bin=NN'
+                idt = line.split()[2:].index("dt")
+            elif cur is not None and (m := _BIN.match(line)):
+                b, tok = int(m[1]), m[2].split()
+                if b < cur[1]:
+                    cur[1:] = [b, float(tok[idt]), int(tok[0]), int(tok[1])]
+    if cur is not None:
+        rows.append(cur)
+    d = np.array(rows)
+    keep = _final_pass(d[:, 0])
+    d = d[keep]
+    return TimebinLog(
+        d[:, 0],
+        d[:, 1].astype(int),
+        d[:, 2],
+        d[:, 3].astype(int),
+        d[:, 4].astype(int),
+        rows_dropped=int((~keep).sum()),
+    )
+
+
+@dataclass(frozen=True)
+class DiskUsage:
+    n_snap: int
+    snap_bytes: int
+    restart_bytes: int  # restart.N + bak-restart.N per task: fixed cost, not done per snapshot
+    log_bytes: int  # *.txt, grows with steps
+    other_bytes: int
+
+
+def disk_usage(output_dir: str | os.PathLike) -> DiskUsage:
+    """
+    Returns the stat-only footprint of a specified OutputDir
+    Limitation: single-file snapshots only; snapdir_NNN/ (NumFilesPerSnapshot > 1) lands in other_bytes
+    """
+    out = Path(output_dir)
+
+    def size(paths):
+        return sum(p.stat().st_size for p in paths if p.is_file())
+
+    snaps = list(out.glob("snap_*.hdf5"))
+    snap, restart, logs = (
+        size(snaps),
+        size((out / "restartfiles").glob("*")),
+        size(out.glob("*.txt")),
+    )
+    return DiskUsage(len(snaps), snap, restart, logs, size(out.rglob("*")) - snap - restart - logs)
+
+
+def expected_snapshots(params: dict[str, str]) -> int | None:
+    """
+    Snapshots a run writes by TimeMax at fixed cadence
+    None with OutputListOn
+    """
+    if params.get("OutputListOn", "0") != "0":
+        return None
+
+    n = (float(params["TimeMax"]) - float(params["TimeBegin"])) / float(params["TimeBetSnapshot"])
+    return int(n + 1e-6) + 1

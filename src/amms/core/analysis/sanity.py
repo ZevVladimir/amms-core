@@ -12,7 +12,7 @@ import numpy as np
 
 from amms.core.checks import CheckResult, Status
 
-__all__ = ["check_finite", "check_in_box", "check_unique_positions", "max_radius"]
+__all__ = ["check_finite", "check_in_box", "check_relative", "check_unique_positions", "max_radius"]
 
 
 def check_finite(name: str, arr: np.ndarray) -> CheckResult:
@@ -55,3 +55,14 @@ def check_unique_positions(
 
 def max_radius(pos: np.ndarray, center: np.ndarray) -> float:
     return float(np.linalg.norm(pos - center, axis=1).max())
+
+
+def check_relative(
+    name: str, got: float, expected: float, *, rtol: float, detail: str = ""
+) -> CheckResult:
+    """
+    value: relative difference
+    if expected 0  must give exactly 0: a type that appears from nowhere should FAIL not pass tiny absolute mass
+    """
+    rel = abs(got - expected) / abs(expected) if expected else 0.0 if got == 0 else float("inf")
+    return CheckResult(name, Status.PASS if rel <= rtol else Status.FAIL, rel, rtol, detail)
