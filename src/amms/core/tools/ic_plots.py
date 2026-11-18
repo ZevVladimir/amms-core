@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # (c) rotation: model v_c vs spherical M(<r) vs what the particles actually do
     r_all = np.concatenate([np.linalg.norm(x["pos"], axis=1) for x in p.values()])
-    m_all = np.concatenate([x["m"] for x in p.values])
+    m_all = np.concatenate([x["m"] for x in p.values()])
     vc_part = profiles.vc_enclosed(r_all, m_all, rc, G)
     if vc:
         k = vc.r <= r_max
@@ -213,7 +213,7 @@ def main(argv: list[str] | None = None) -> None:
     if vc:
         k = vc.q_r <= r_max
         a_q.plot(vc.q_r[k], vc.q_stars[k], color="C2", ls="--", label="stars model")
-        a_q.plot(vc.q_r[k], vc.q_gas[k], color="C0", ls=":", label="gas model (SHO3 EOS)")
+        a_q.plot(vc.q_r[k], vc.q_gas[k], color="C0", ls=":", label="gas model (SH03 EOS)")
     a_q.axhline(1, color="0.6", lw=0.8)
     a_q.set(xlabel="R [kpc]", ylabel="Q", yscale="log", title="Toomre Q")
     a_q.legend(fontsize=7)

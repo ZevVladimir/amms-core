@@ -122,7 +122,7 @@ def read_vc(path: str | os.PathLike) -> VcFile:
     tok = " ".join(lines).split()  # sections are whitespace-separated; blank lines vanish
     n = int(tok[0])
     curves = np.array(tok[1 : 1 + 5 * n], dtype=float).reshape(5, n)
-    rest = tok[1 : 1 + 5 * n :]
+    rest = tok[1 + 5 * n :]
     m = int(rest[0])
     if len(rest) != 1 + 3 * m:
         raise ValueError(f"{path}: Toomre block has {len(rest) - 1} values, expected {3 * m}")
