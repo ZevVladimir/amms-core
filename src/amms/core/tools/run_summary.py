@@ -29,7 +29,7 @@ from amms.core import ics
 from amms.core.analysis import sanity
 from amms.core.checks import CheckResult, Status, worst
 from amms.core.codes import arepo
-from amms.core.config.paths import ics_root
+from amms.core.config.paths import ics_root, products_root
 from amms.core.ids import InvalidSimID, SimID
 
 TYPE_NAMES = ["gas", "halo", "disk", "bulge", "stars", "bndry"]
@@ -38,16 +38,21 @@ MEM_WARN = 0.8  # fraction of MaxMemSize, AREPO aborts at 1.0
 FORMED_RTOL = 1e-4  # energy.txt has 6 digits and can be one step's formation apart from sfr.txt
 
 
+def _sim_id(run_dir: Path) -> SimID | None:
+    try:
+        return SimID.parse(run_dir.resolve().name)
+    except InvalidSimID:
+        return None
+
+
 def resolve_ic(run_dir: Path, ic_arg: Path | None, params: dict[str, str]):
     """
     Order of precedence: --ic then the SIM_ID's tag (registry path) then InitCondFile
     if the run has a tag the chosen file's sha256 is checked against it
     ICs are revised in place so can't just trust a path
     """
-    try:
-        tag = SimID.parse(run_dir.resolve().name).ic
-    except InvalidSimID:
-        tag = None
+    sid = _sim_id(run_dir)
+    tag = sid.ic if sid else None
     registry = ics_root() / "ic_tags.yaml"
     tags = ics.read_tags(registry) if tag else {}
     if ic_arg:
@@ -73,12 +78,68 @@ def resolve_ic(run_dir: Path, ic_arg: Path | None, params: dict[str, str]):
     ]
 
 
+def plot_health(
+    e: arepo.EnergyLog, tb: arepo.TimebinLog, units: arepo.Units, sim_id: SimID, out: Path
+) -> Path:
+    import matplotlib.pyplot as plt  # tables should work in venv without matplotlib
+
+    from amms.core.plotting.provenance import savefig
+
+    t = e.time * units.time_gyr
+    m = e.mass * units.mass_msun
+    erg = units.mass_g / units.hubble * units.velocity_cm_s**2  # code energy conversion to ergs
+
+    fig, (ax0, ax1, ax2) = plt.subplots(3, 1, sharex=True, figsize=(6, 7.5))
+    # color = ParType in every panel
+    ax0.plot(t, m[:, 0], color="C0", label="gas")
+    ax0.plot(t, m[:, 4], color="C4", label="new stars")
+    ax0.plot(t, m[:, 0] + m[:, 4], color="0.4", ls=":", label="gas + new stars")
+    ax0.set_ylabel(r"$M$ [$M_\odot$]")
+    ax0.legend(fontsize=8)
+
+    live = tb.min_dt > 0  # step 0 sits in bin 0 with dt 0
+    ax1.plot(
+        tb.time[live] * units.time_gyr, tb.min_dt[live] * units.time_myr * 1e3, color="0.2", lw=0.5
+    )
+    ax1.set_yscale("log")
+    ax1.set_ylabel("smallest dt [kyr]")
+
+    for k in range(6):
+        if e.e_kin[:, k].any():
+            ax2.plot(t, e.e_kin[:, k] * erg, color=f"C{k}", label=f"{TYPE_NAMES[k]} kinetic")
+    ax2.plot(t, e.e_int[:, 0] * erg, color="C0", ls="--", label="gas thermal")
+    ax2.set_yscale("log")  # halo Ekin is ~100x gas; new star zeros at t=0 are masked
+    ax2.set_ylabel("E [erg]")
+    ax2.set_xlabel("t [Gyr]")
+    ax2.legend(fontsize=7, ncol=2)
+
+    out.mkdir(parents=True, exist_ok=True)
+    path = savefig(
+        fig,
+        out / "run_health.png",
+        source=sim_id,
+        repo=Path(__file__).parent,
+        extra={"energy_rows_dropped": e.rows_dropped, "timebins_rows_dropped": tb.rows_dropped},
+        dpi=200,
+        bbox_inches="tight",
+    )
+    plt.close(fig)
+    return path
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="amms run-summary")
     ap.add_argument("run_dir", type=Path)
     ap.add_argument("--param", default="param.txt", help="param file the run used")
-    ap.add_argument("--log", nargs="+", type=Path, default=[], help="job .out file(s) all restarts")
+    ap.add_argument(
+        "--log",
+        nargs="+",
+        type=Path,
+        default=[],
+        help="this run's job .out file(s), including restarts; not smoke tests",
+    )
     ap.add_argument("--depth", type=int, default=1, help="deepest timer level shown")
+    ap.add_argument("--no-fig", action="store_true", help="tables only")
     g = ap.add_mutually_exclusive_group()
     g.add_argument(
         "--ic", type=Path, help="IC to compare t=0 masses with; default: from SIM_ID tag"
@@ -115,6 +176,7 @@ def main(argv: list[str] | None = None) -> None:
             ("Stellar mass formed", f"{s.mass_formed_cum[-1] * units.mass_msun:.3g} Msun"),
         ]
 
+    e = tb = None
     if (out / "energy.txt").exists():
         e = arepo.read_energy(out / "energy.txt")
         dropped["energy"] = e.rows_dropped
@@ -150,16 +212,16 @@ def main(argv: list[str] | None = None) -> None:
                         )
                         # init.cc:1419-1424 raises cells below MinimumDensityOnStartUp to it and rescales their mass
                         # So AREPO starts with MORE gas than the IC holds
-                        if (
-                            t == 0
-                            and r.status is Status.FAIL
-                            and floor > 0
-                            and e.mass[0, 0] > icm[0]
-                        ):
+                        excess = float(e.mass[0, 0]) - icm.get(0, 0.0)
+                        # most the floor can add: every cell in the box raised to it
+                        # (mesh tiles the box exactly, sum m/rho = BoxSize^3 from run 1)
+                        cap = floor * float(p["BoxSize"]) ** 3
+                        if t == 0 and r.status is Status.FAIL and floor > 0 and 0 < excess <= cap:
                             r = dataclasses.replace(
                                 r,
                                 status=Status.WARN,
-                                detail=f"{r.detail}; excess from MinimumDensityOnStartUp={floor:g} (init.cc:1419)",
+                                detail=f"{r.detail}; excess = {excess / cap:.1%} of "
+                                f"MinimumDensityOnStartUp x BoxSize^3 (init.cc:1419)",
                             )
                         checks.append(r)
 
@@ -233,6 +295,14 @@ def main(argv: list[str] | None = None) -> None:
     for t in cpu.timers:
         if t.depth <= a.depth:
             print(f"| {'↳ ' * t.depth}{t.name} | {t.cumulative_s:.1f} | {t.cumulative_pct:.1f}% |")
+
+    sid = _sim_id(a.run_dir)
+    if a.no_fig or e is None or tb is None:
+        pass
+    elif sid is None:
+        print("\nNo figure: run dir is not a SIM_ID, so it has not products dataset")
+    else:
+        print(f"\nFigure: {plot_health(e, tb, units, sid, products_root() / str(sid) / 'figures')}")
 
 
 if __name__ == "__main__":

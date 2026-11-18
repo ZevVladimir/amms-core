@@ -93,10 +93,12 @@ run-summary 2026-11-17: all PASS except **`t0_mass_gas` FAIL, energy.txt t=0 gas
 above the IC** (0.0604452 vs ~0.05965 = the 5.97e8 budget; collisionless types agree to
 ~1e-6). **Confirmed 2026-11-17: `MinimumDensityOnStartUp` 1e-10** raises cells below it and
 rescales their mass (`arepo-smuggle:src/main/init.cc:1419-1424`). IC gas 0.0596514 →
-snap_000 0.0604452 (+7.94e-4 = 7.9e6 Msun), same N (2,374,442); 5001 cells at the floor
-carrying 8.50e-4. Floor gas is background, not galaxy; "fraction of initial gas formed"
-must use IC gas or a galaxy region. **Open:** floor cells' m/ρ = 8.5e6 kpc³ > box 8e6 kpc³
-— snapshot Density may not be m/V of the t=0 mesh. Peano overrides: 17 in the production
+snap_000 0.0604452 (+7.94e-4 = 7.9e6 Msun), same N (2,374,442). Snapshot Density is
+m/V: Σ m/ρ = 7,999,999.92 = BoxSize³ (no Volume field). Excess = 99.2% of
+floor·BoxSize³ → nearly the whole box volume sits at the floor; galaxy volume is tiny.
+(The "5001 cells at floor" count was wrong: `np.isclose` default `atol=1e-8` ≫ 1e-10;
+use `atol=0`.) Floor gas is background, not galaxy; "fraction of initial gas formed" must
+use IC gas or a galaxy region. run-summary: gas excess ≤ floor·BoxSize³ → WARN. Peano overrides: 17 in the production
 log; smoke logs add 1 + 4 → pass only the production `.out` (+ its restarts) to `--log`.
 
 `/xdisk/gbesla/zvladimir/sims/smc/smc_001_edw1_sh03` (moved 2026-11-05 from
