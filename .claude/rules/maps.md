@@ -28,3 +28,10 @@ paths:
   `reference=(0,0,-1)` explicitly to match Rathore's `clouds_demo` frame (`y'` = line
   of nodes). The two conventions differ by **130.65 deg** for the LMC; the driver
   records `pa_convention` in `meta`.
+- **Verified 2026-11-18:** `face_on_basis` == Rz(ψ)·Ry(-θ)·Rz(-φ) to 6e-15 (φ =
+  atan2(zy,zx), θ = arccos zz, ψ = -atan2 of the tilted reference), outside the
+  |ref·zhat| > 0.99 fallback. So separated named rotations are an exact rewrite (no product
+  change). The two-step Rz(-φ)→Ry(-θ) form (magclouds `alignGal.align_galaxy_xy`) has no
+  ψ: x' jumps 90° between zhat tilted 1e-3 toward x vs toward y (ours: 0.06°).
+  User (2026-11-18) wants rotations built as separate named matrices — reopens the
+  "Gram–Schmidt, not Euler" wording above; decision pending.

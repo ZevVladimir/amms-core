@@ -98,20 +98,26 @@ def plot_health(
     ax0.legend(fontsize=8)
 
     live = tb.min_dt > 0  # step 0 sits in bin 0 with dt 0
-    ax1.plot(
-        tb.time[live] * units.time_gyr, tb.min_dt[live] * units.time_myr * 1e3, color="0.2", lw=0.5
-    )
+    t_tb = tb.time[live] * units.time_gyr
+    dt_kyr = tb.min_dt[live] * units.time_myr * 1e3
+    # min within 1 Myr windows: the smallest bin flickers between neighbors each sync point
+    # Floor is what matters for detecting if the time scale got too small
+    edges = np.arange(t_tb[0], t_tb[-1] + 1e-3, 1e-3)
+    starts = np.searchsorted(t_tb, edges[:-1])
+    keep = np.unique(starts[starts < len(t_tb)])
+    ax1.stairs(np.minimum.reduceat(dt_kyr, keep), np.append(t_tb[keep], t_tb[-1]), color="0.2")
     ax1.set_yscale("log")
     ax1.set_ylabel("smallest dt [kyr]")
 
     for k in range(6):
         if e.e_kin[:, k].any():
-            ax2.plot(t, e.e_kin[:, k] * erg, color=f"C{k}", label=f"{TYPE_NAMES[k]} kinetic")
+            name = "new stars" if k == 4 else TYPE_NAMES[k]
+            ax2.plot(t, e.e_kin[:, k] * erg, color=f"C{k}", label=f"{name} kinetic")
     ax2.plot(t, e.e_int[:, 0] * erg, color="C0", ls="--", label="gas thermal")
     ax2.set_yscale("log")  # halo Ekin is ~100x gas; new star zeros at t=0 are masked
     ax2.set_ylabel("E [erg]")
     ax2.set_xlabel("t [Gyr]")
-    ax2.legend(fontsize=7, ncol=2)
+    ax2.legend(fontsize=7, loc="center left", bbox_to_anchor=(1.01, 0.5))
 
     out.mkdir(parents=True, exist_ok=True)
     path = savefig(

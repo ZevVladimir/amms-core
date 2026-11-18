@@ -96,6 +96,26 @@ broken file. `.parameters` is `%g` (6 sig. digits, ~5e-6 rel) → `MASS_RTOL = 1
   `.parameters` → written by that run. Proper-name rerun at 15:11 left no `.vc` under
   `/groups/gbesla/zvladimir/ics` (ran from another cwd?). Use `.vc` for edw1; it models
   the stage-1 IC (pre-grid).
+- **`.vc` exact layout** (`makegalaxy:toomre.c:42-140`): header = `write_header` =
+  `.parameters` (so `read_parameters` reads it); `1000`; R (`%f`, R200/1000·i); v_c²
+  total, disk (tree), halo, bulge (`%f`, (km/s)²); blank; count; `list_R` (log grid,
+  `init.c:173`, ≤ 6H); Q stars; Q gas (`%g`). Header fields are *ratios* for `z0`
+  (DiskHeight; Z0 = z0·Rd, `structure.c:145`) and `BSize`; `a` is the bulge scale A itself;
+  `Rd` = H. No `PowerLawGamma` in header → GasD=2 gas profile not reconstructible.
+- **smct1 `.vc` (Himansh's MakeGalaxy_puma9) adds marker lines** `starting list R`,
+  `ending list R`, `starting Q`, `ending Q`, `starting Qg`, `ending Qg` (lines 5041-6221,
+  391 Toomre points, 6221 lines; `done` at 36). `read_vc` must drop lines starting
+  `starting`/`ending`; whether a count line precedes `starting list R` is unverified.
+- **.vc Q_gas is not the IC's Q:** `toomre.c:73` uses c_s² = γ·U4·(ρ/ρ_th)^-½ (SH03 eff.
+  EOS); IC gas is u = U4 flat (`gasset.c:87`), c_s² = γ(γ-1)u. Q_* (`toomre.c:65`) uses
+  stellar-only M_DISK (`structure.c:89`) — comparable.
+- Analytic profiles: halo ρ = M_HALO/(2π)·RH/(r(r+RH)³) (`halo.c:204`, RH = R200/CC,
+  Hayden mod `structure.c:74`); bulge same form with A (`bulge.c:167`); disk Σ =
+  M_DISK/(2πH²)e^{-R/H}, sech²(z/Z0) (`disk.c:288`); gas Σ GasD 0: H, 1: GasAl·H
+  (`gas.c:89-100`); gas vertical from hydrostatic, no analytic. MakeGalaxy G from
+  GRAVITY 6.672e-8, kpc / 1e10 Msun / km/s (`init.c:20-26`, `globvars.h:13`).
+- IC figures: one combined figure (user, 2026-11-17), new command `amms ic-plots`
+  (user, 2026-11-17).
 - smc_test `Zmet0=0.032` is the MW template (~2x solar), not SMC.
 - Open regeneration decisions: Zmet0, FactorForSofterEQS, halo truncation, V200's
   assumed h (ask Ethan for his dwarf too).

@@ -89,6 +89,11 @@ paths:
 
 ## First run: `smc_001_edw1_sh03`
 
+energy.txt relaxation (IC not quite in equilibrium?): first ~30-50 Myr bulge Ekin
+1.4406 → ~1.32 (-9%), disk 28.39 → ~27.1 (-4.5%), halo 3332 → ~3259 (-2%), then flat;
+gas Eint 1.3× rise to ~0.1 Gyr. Smallest dt: startup transient bin 9 (0.95 kyr) in the
+first ~10 Myr, then bin 14 (30 kyr) floor with 13/15 excursions. Compare in IC plots.
+
 run-summary 2026-11-17: all PASS except **`t0_mass_gas` FAIL, energy.txt t=0 gas 1.33%
 above the IC** (0.0604452 vs ~0.05965 = the 5.97e8 budget; collisionless types agree to
 ~1e-6). **Confirmed 2026-11-17: `MinimumDensityOnStartUp` 1e-10** raises cells below it and

@@ -32,6 +32,8 @@ Notes in `.claude/notes/` are **not** auto-loaded — read on demand:
 - `arepo-build.md` — compiling AREPO on Puma, systypes, modules, `test.py`
 - `smuggle-config.md` — Config.sh flag sets, SMUGGLE params, the calibration blocker
 - `hpc.md` — junonia vs compute nodes, venvs, Jupyter kernel wrapper, past traps
+- `magclouds-review.md` — Rathore's utils: port list, 3 silent bugs, named-rotation
+  rewrite (exact, verified) + 4 open questions. **Pick up after `ic-plots` lands.**
 
 When a fact is learned, put it in the topic file it belongs to; this file keeps only
 what every session needs. Delete superseded entries (git history keeps them).
@@ -100,7 +102,8 @@ Pin: all LMC stars, 100 Myr last bin ≈ 0.0488. **Target figure:** LMC–SMC di
    `lmcsmcmw/scripts/{sfr_maps_b12,plot_sfr_maps,plot_radec}.py` (hardcode
    `products_root()/"b12_model2"`) at `ext_b12-model2`; regenerate, delete old dir.
 4. `b12_lmc_newstars.py` → notebook; then SMC cache, Model 1.
-5. `analysis/sanity.py` mass conservation (gas + new stars vs initial gas; M* vs sfr.txt).
+5. Done 2026-11-17: run-summary mass/IC/memory/timestep/disk sections + `run_health.png`
+   (via energy.txt, no snapshot reads). Run #1: all PASS, `t0_mass_gas` WARN (density floor).
 6. First own-run figure: `amms plot-sfh` → `$AMMS_PRODUCTS/<sim_id>/figures/sfh_sfrtxt.png`
    (user-approved name; `_sfrtxt` leaves room for age-based `sfh_*`). run-summary's one
    3-panel figure (mass/type, min dt, Ekin+Eint/type vs t) →
@@ -127,8 +130,8 @@ writes one md, laptop rsyncs into the vault (vault path still needed). No scront
 read-only format parsing (`codes/makegalaxy.py`). Generator modules expose
 `component_budget(params) -> list[ExpectedComponent]`. IC sanity products live with the
 IC: `<ics_root>/<ic_name>/sanity/`, symlinked from `$AMMS_PRODUCTS/ics/<ic_name>`;
-results carry the IC sha256. IC figures → `sanity/<ic_stem>/figures/` (user, 2026-11-13;
-filenames not yet approved). Wanted: profiles vs analytic, v_c vs `.vc`, Toomre Q +
+results carry the IC sha256. IC figures → `sanity/<ic_stem>/figures/ic_diagnostics.png` (one combined
+figure, `amms ic-plots`; names + `analysis/profiles.py` approved 2026-11-18). Wanted: profiles vs analytic, v_c vs `.vc`, Toomre Q +
 vertical, maps + Z/age. Result plots after: SFH sfrtxt, maps over time, v_c evolution,
 scale height/Q evolution — share code paths with the IC plots.
 
