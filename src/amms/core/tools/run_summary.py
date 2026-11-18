@@ -19,6 +19,7 @@ Currently
 from __future__ import annotations
 
 import argparse
+import dataclasses
 from pathlib import Path
 
 import h5py
@@ -137,17 +138,30 @@ def main(argv: list[str] | None = None) -> None:
             checks += res
             if ic:
                 icm = ics.component_masses(ic, ics.read_header(ic))
+                floor = float(p.get("MinimumDensityOnStartUp", 0))
                 for t in range(6):
                     if icm.get(t, 0.0) or e.mass[0, t]:
-                        checks.append(
-                            sanity.check_relative(
-                                f"t0_mass_{TYPE_NAMES[t]}",
-                                float(e.mass[0, t]),
-                                icm.get(t, 0.0),
-                                rtol=ics.MASS_RTOL,
-                                detail=f"energy.txt t=0 vs {ic.name}",
-                            )
+                        r = sanity.check_relative(
+                            f"t0_mass_{TYPE_NAMES[t]}",
+                            float(e.mass[0, t]),
+                            icm.get(t, 0.0),
+                            rtol=ics.MASS_RTOL,
+                            detail=f"energy.txt t=0 vs {ic.name}",
                         )
+                        # init.cc:1419-1424 raises cells below MinimumDensityOnStartUp to it and rescales their mass
+                        # So AREPO starts with MORE gas than the IC holds
+                        if (
+                            t == 0
+                            and r.status is Status.FAIL
+                            and floor > 0
+                            and e.mass[0, 0] > icm[0]
+                        ):
+                            r = dataclasses.replace(
+                                r,
+                                status=Status.WARN,
+                                detail=f"{r.detail}; excess from MinimumDensityOnStartUp={floor:g} (init.cc:1419)",
+                            )
+                        checks.append(r)
 
     if (out / "timebins.txt").exists():
         tb = arepo.read_timebins(out / "timebins.txt")
@@ -157,8 +171,8 @@ def main(argv: list[str] | None = None) -> None:
         rows.append(
             (
                 "Smallest timestep",
-                f"{tb.min_dt[j] * units.time_myr * 1e3:3g} kyr (bin {tb.min_bin[j]}, "
-                f"t = {tb.time[j] * units.time_myr:.1f} Myr, {tb.n_hydro[j]} cells)",
+                f"{tb.min_dt[j] * units.time_myr * 1e3:.3g} kyr (bin {tb.min_bin[j]}, "
+                f"t = {tb.time[j] * units.time_myr:.3g} Myr, {tb.n_hydro[j]} cells)",
             )
         )
 
@@ -192,8 +206,8 @@ def main(argv: list[str] | None = None) -> None:
     if n_exp:
         # logs scale with sim time reached, restart set doesn't grow
         logs_end = du.log_bytes * tmax / cpu.time if cpu.time else du.log_bytes
-        total = n_exp * per_snap + du.restart_bytes + logs_end * du.other_bytes
-        rows.append(("Projected at TimeMax", f"{n_exp} snapshots, {total / GIB:.1f} GIB"))
+        total = n_exp * per_snap + du.restart_bytes + logs_end + du.other_bytes
+        rows.append(("Projected at TimeMax", f"{n_exp} snapshots, {total / GIB:.1f} GiB"))
 
     snaps = sorted(out.glob("snap_*.hdf5"))
     if snaps:

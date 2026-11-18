@@ -102,7 +102,9 @@ Pin: all LMC stars, 100 Myr last bin ≈ 0.0488. **Target figure:** LMC–SMC di
 4. `b12_lmc_newstars.py` → notebook; then SMC cache, Model 1.
 5. `analysis/sanity.py` mass conservation (gas + new stars vs initial gas; M* vs sfr.txt).
 6. First own-run figure: `amms plot-sfh` → `$AMMS_PRODUCTS/<sim_id>/figures/sfh_sfrtxt.png`
-   (user-approved name; `_sfrtxt` leaves room for age-based `sfh_*`).
+   (user-approved name; `_sfrtxt` leaves room for age-based `sfh_*`). run-summary's one
+   3-panel figure (mass/type, min dt, Ekin+Eint/type vs t) →
+   `$AMMS_PRODUCTS/<sim_id>/figures/run_health.png` (user-approved 2026-11-17).
 7. Snapshot maps over time, rotation curve, scale-height evolution (reading in drivers).
 8. IC diagnostic plots (profiles vs analytic, rotation curve vs `.vc` — needs
    `makegalaxy.read_vc`, read source layout first — Toomre Q, Z/age) on edw1, smct1.
