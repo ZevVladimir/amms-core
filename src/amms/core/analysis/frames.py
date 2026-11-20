@@ -9,18 +9,107 @@ Derive a Frame for initial disk stars and then apply that to young stars, gas, d
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
 __all__ = [
     "Frame",
+    "RotStep",
     "angular_momentum_axis",
     "bulk_velocity",
+    "compose",
     "face_on_basis",
+    "face_on_basis_gram_schmidt",
+    "face_on_steps",
+    "rot_x",
+    "rot_y",
+    "rot_z",
     "shrinking_sphere_center",
     "translate",
 ]
+
+
+def rot_x(angle: float) -> np.ndarray:
+    """
+    Provides a matrix to do an active rotation by angle (rad) about x
+    """
+    c, s = np.cos(angle), np.sin(angle)
+    return np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
+
+
+def rot_y(angle: float) -> np.ndarray:
+    """
+    Provides a matrix to do an active rotation by angle (rad) about y
+    """
+    c, s = np.cos(angle), np.sin(angle)
+    return np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
+
+
+def rot_z(angle: float) -> np.ndarray:
+    """
+    Provides a matrix to do an active rotation by angle (rad) about z
+
+    rot_z(-alpha) @ R puts the in-plane direction at angle alpha (measured in R's frame) onto +x'
+    """
+    c, s = np.cos(angle), np.sin(angle)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
+_ROT = {"x": rot_x, "y": rot_y, "z": rot_z}
+
+
+@dataclass(frozen=True)
+class RotStep:
+    """
+    Records one active rotation about an axis of the current frame
+
+    Frame.rotation = step_n @ ... @ step_1 (to apply first step first apply it on the right)
+    """
+
+    axis: str  # "x" | "y" | "z"
+    angle_deg: float
+    purpose: str
+
+    def matrix(self) -> np.ndarray:
+        return _ROT[self.axis](np.radians(self.angle_deg))
+
+
+def compose(steps) -> np.ndarray:
+    R = np.eye(3)
+    for s in steps:
+        R = s.matrix() @ R
+    return R
+
+
+def face_on_steps(zhat, *, reference=(1.0, 0.0, 0.0)) -> tuple[RotStep, ...]:
+    """
+    Like face_on_basis_gram_schmidt() later on but with the rotation split into its three rotations
+    with test_frames.py pinned to match the output
+    """
+    zhat = np.asarray(zhat, dtype=float)
+    zhat = zhat / np.linalg.norm(zhat)
+    ref = np.asarray(reference, dtype=float)
+    ref = ref / np.linalg.norm(ref)
+
+    # If the projected reference would be zero length
+    if abs(float(ref @ zhat)) > 0.99:
+        ref = np.eye(3)[int(np.argmin(np.abs(zhat)))]
+
+    phi = np.arctan2(zhat[1], zhat[0])
+    # Clip: since normalized vectors can have |z| = 1 + 1e-16 which would return nan with arccos
+    theta = np.arccos(np.clip(zhat[2], -1.0, 1.0))
+    r = rot_y(-theta) @ rot_z(-phi) @ ref
+    alpha = np.arctan2(r[1], r[0])
+    return (
+        RotStep("z", -float(np.degrees(phi)), "bring the disk normal's azimuth onto the x-z plane"),
+        RotStep("y", -float(np.degrees(theta)), "tilt the disk normal onto +z (face-on)"),
+        RotStep("z", -float(np.degrees(alpha)), "position angle: projected reference onto +x"),
+    )
+
+
+def face_on_basis(zhat, *, reference=(1.0, 0.0, 0.0)) -> np.ndarray:
+    return compose(face_on_steps(zhat, reference=reference))
 
 
 def shrinking_sphere_center(
@@ -135,7 +224,7 @@ def angular_momentum_axis(
     return total / norm
 
 
-def face_on_basis(
+def face_on_basis_gram_schmidt(
     zhat: np.ndarray,
     *,
     reference: np.ndarray = (1.0, 0.0, 0.0),
@@ -183,11 +272,17 @@ class Frame:
     rotation: np.ndarray
     tracers: str = ""
     r_axis: float | None = None  # The r_max used for the angular momentum axis
+    rot_steps: tuple[RotStep, ...] = ()
+    pa_convention: str = ""
 
     def __post_init__(self) -> None:
         # Convert lists (from metadata file or literal) to arrays
         for name in ("center", "v_center", "rotation"):
             object.__setattr__(self, name, np.asarray(getattr(self, name), dtype=float))
+        object.__setattr__(self, "rot_steps", tuple(self.rot_steps))
+        # rot_steps documents the rotation
+        if self.rot_steps and not np.allclose(compose(self.rot_steps), self.rotation, atol=1e-10):
+            raise ValueError("rot_steps do not compose to rotation")
 
     @classmethod
     def from_tracers(
@@ -201,17 +296,24 @@ class Frame:
         r_axis: float = 10.0,
         reference: np.ndarray = (1.0, 0.0, 0.0),
         tracers: str = "",
+        pa_convention: str = "sim_x",
     ) -> Frame:
         center = shrinking_sphere_center(pos, mass, r_init=r_center)
         v_center = bulk_velocity(pos, vel, mass, center, r_max=r_vel)
         zhat = angular_momentum_axis(pos, vel, mass, center=center, v_center=v_center, r_max=r_axis)
 
+        if pa_convention == "sim_x" and not np.allclose(reference, (1.0, 0.0, 0.0)):
+            # default label would silently mislabel a non-default reference
+            raise ValueError("pass pa_convention naming the non-default reference")
+        steps = face_on_steps(zhat, reference=reference)
         return cls(
             center,
             v_center,
-            face_on_basis(zhat, reference=reference),
+            compose(steps),
             tracers=tracers,
             r_axis=r_axis,
+            rot_steps=steps,
+            pa_convention=pa_convention,
         )
 
     @classmethod
@@ -234,6 +336,25 @@ class Frame:
 
         return cls(current_center - target_center, np.zeros(3), rot, tracers=tracers)
 
+    def rotated_z(
+        self, alpha: float, *, purpose: str, pa_convention: str, tracers: str | None = None
+    ) -> Frame:
+        """
+        Returns a new Frame rotated about z' so that the direction at angle alpha (rad, in this frame) lands on +x'
+
+        purpose is required: every rotation in a product's meta says why it is there
+        Center and v_center remain unchanged
+        Only the position angle moves
+        """
+        step = RotStep("z", -float(np.degrees(alpha)), purpose)
+        return replace(
+            self,
+            rotation=step.matrix() @ self.rotation,
+            rot_steps=(*self.rot_steps, step) if self.rot_steps else (),
+            pa_convention=pa_convention,
+            tracers=self.tracers if tracers is None else tracers,
+        )
+
     def positions(self, pos: np.ndarray) -> np.ndarray:
         # Returns the input positions with the Frame's corrections
         return translate(pos, -self.center) @ self.rotation.T
@@ -252,6 +373,11 @@ class Frame:
             "rotation": [[float(v) for v in row] for row in self.rotation],
             "tracers": self.tracers,
             "r_axis": self.r_axis,
+            "pa_convention": self.pa_convention,
+            "rot_steps": [
+                {"axis": s.axis, "angle_deg": float(s.angle_deg), "purpose": s.purpose}
+                for s in self.rot_steps
+            ],
         }
 
 

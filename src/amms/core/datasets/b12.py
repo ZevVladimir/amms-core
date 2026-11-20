@@ -32,6 +32,15 @@ SNAP_PRESENT_DAY = 69
 LMC_CENTER_069 = (-0.18, -37.28, -30.40)  # kpc
 LMC_VCENTER_069 = (-81.28, -264.26, 248.83)  # km/s
 
+# North/South split along the LMC's bar
+# Chosen by eye on diskstars_lmc-<snap> in b12_SF_review.ipynb
+# phi2 = fourier_phase(m=2) over r_min <= R < r_max in galaxy_frame
+# alpha = phi2 + pi * flip; with flip chosen so the spiral arm lands at y' > 0 defining north
+LMC_BAR_SPLIT = {
+    # (model, snapshot): (r_min_kpc, r_max_kpc, flip)
+    (2, 69): None,  # not chosen yet
+}
+
 # B12's MW was just a potential so assumed to be fixed at box origin for all snaps
 # Raw positions from readsnap are galactocentric
 # TODO confirm this from the paper
@@ -129,6 +138,7 @@ def galaxy_frame(
         r_axis=r_axis,
         reference=PA_REFERENCE_CLOUDS_DEMO,
         tracers=f"b12_{galaxy}_disk_stars",
+        pa_convention="line_of_nodes_clouds_demo",
     )
 
 

@@ -48,6 +48,7 @@ _JSON_ATTRS = ("provenance", "meta")  # nested dicts; scalar attrs stay plain so
 # Units live in the names (canonical kpc, km/s, Msun, Gyr)
 KINDS: dict[str, frozenset[str]] = {
     "newstars": frozenset({"pos_kpc", "t_form_gyr", "mass_msun"}),
+    "diskstars": frozenset({"pos_kpc", "mass_msun"}),
     "sfrmap": frozenset({"values", "counts", "extent"}),
     "orbit": frozenset({"snapshot", "t_gyr", "pos_kpc", "vel_kms"}),
 }
