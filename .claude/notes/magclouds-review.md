@@ -6,19 +6,11 @@ e578132 2026-02-13). Modules: `transform_galaxy.py` (COM, coords, rotations, ali
 `halo_tools.py` (Hernquist/NFW, MakeGalaxy V200/CC), `snap_analysis.py`, `cosmology.py`.
 All take (3, N) arrays (ours: (N, 3)).
 
-## Rotations — user wants separate named matrices (reopens maps.md "not Euler" wording)
+## Rotations — DONE 2026-11-19 (see `.claude/rules/maps.md`)
 
-- Exact rewrite available: `face_on_basis` == Rz(ψ)·Ry(-θ)·Rz(-φ), φ = atan2(zy, zx),
-  θ = arccos zz, ψ = -atan2(r_y, r_x) with r = Ry(-θ)Rz(-φ)·reference. Max diff 6e-15
-  over 10k random normals × both references, outside the |ref·zhat| > 0.99 fallback
-  (decomposed form needs the same fallback). → no product changes, B12 130.65° intact.
-- magclouds `alignGal.align_galaxy_xy` = steps 1-2 only (no ψ): near face-on x' jumps 90°
-  (zhat tilted 1e-3 toward x vs y); ours 0.06°. Step 3 is what keeps isolated-IC time
-  series oriented.
-- `frames.py` has **no tests** — rewrite must pin today's matrices first.
-- Open questions asked, unanswered:
-  1. Keep convention exactly, just three named matrices? (recommended) vs magclouds 2-step.
-  2. Record φ/θ/ψ (deg) in `Frame.to_dict()` → new fields in every Map2D meta (schema).
+Named steps built and pinned; convention kept exactly; `rot_steps` + `pa_convention` in
+`Frame.to_dict()`. Fourier m=2 bar phase pulled forward into `analysis/fourier.py`.
+Still open:
   3. Port scope (below).
   4. Has the user used magclouds β/σ_r in results? (affected by bug 1). Tell Himansh? user's call.
 

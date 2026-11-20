@@ -264,3 +264,42 @@ def test_to_dict_rot_steps_are_json_and_rebuild_rotation():
     np.testing.assert_allclose(rebuilt, f.rotation, atol=1e-12)
     assert d["rot_steps"][-1]["purpose"] == "bar"
     assert d["pa_convention"] == "bar"
+
+
+# --- B12 Model 2 LMC, snapshot_069 (newstars_lmc-069.h5 meta, regenerated 2026-11-19) ---
+
+B12_LMC_069_ROTATION = np.array(
+    [
+        [-0.5935290311060807, 0.5772806150167279, -0.5607765872075843],
+        [0.6972264630772352, 0.7168509323316868, 0.0],
+        [0.4019932193695383, -0.39098827647526674, -0.827967160725481],
+    ]
+)
+
+
+def test_b12_lmc_frame_reproduced_from_its_axis():
+    z = B12_LMC_069_ROTATION[2]
+    np.testing.assert_allclose(
+        fr.face_on_basis(z, reference=(0.0, 0.0, -1.0)), B12_LMC_069_ROTATION, atol=1e-14
+    )
+
+
+def test_clouds_demo_reference_has_no_third_rotation():
+    # ref = -z survives Rz(-phi) unchanged and Ry(-theta) keeps it in the x-z plane, so the PA step
+    # is always 0: the clouds_demo frame IS the two-step (magclouds align_galaxy_xy) frame
+    steps = fr.face_on_steps(B12_LMC_069_ROTATION[2], reference=(0.0, 0.0, -1.0))
+    assert steps[2].angle_deg == pytest.approx(0.0, abs=1e-12)
+    for z in _random_normals(200):
+        if abs(z[2]) > 0.99:
+            continue
+        assert fr.face_on_steps(z, reference=(0.0, 0.0, -1.0))[2].angle_deg == pytest.approx(
+            0.0, abs=1e-9
+        )
+
+
+def test_b12_lmc_pa_conventions_differ_by_130_41_deg():
+    z = B12_LMC_069_ROTATION[2]
+    x_simx = fr.face_on_basis(z)[0]
+    x_lon = B12_LMC_069_ROTATION[0]
+    signed = np.degrees(np.arctan2(np.cross(x_lon, x_simx) @ z, x_lon @ x_simx))
+    assert signed == pytest.approx(130.4068, abs=1e-3)

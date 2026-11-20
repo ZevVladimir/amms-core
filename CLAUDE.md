@@ -32,8 +32,8 @@ Notes in `.claude/notes/` are **not** auto-loaded — read on demand:
 - `arepo-build.md` — compiling AREPO on Puma, systypes, modules, `test.py`
 - `smuggle-config.md` — Config.sh flag sets, SMUGGLE params, the calibration blocker
 - `hpc.md` — junonia vs compute nodes, venvs, Jupyter kernel wrapper, past traps
-- `magclouds-review.md` — Rathore's utils: port list, 3 silent bugs, named-rotation
-  rewrite (exact, verified) + 4 open questions. **Pick up after `ic-plots` lands.**
+- `magclouds-review.md` — Rathore's utils: port list, 3 silent bugs, 2 open questions.
+  Named rotations + bar m=2 phase done 2026-11-19 (facts in `rules/maps.md`).
 
 When a fact is learned, put it in the topic file it belongs to; this file keeps only
 what every session needs. Delete superseded entries (git history keeps them).
